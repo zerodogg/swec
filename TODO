@@ -1,0 +1,6 @@
+TODO list for SWEC in no particular order:
+- Better handling of URLs with #
+- Better skipping of unknown URIs
+- More checks
+- Support for running each page through the W3C HTML validator
+- Support for running as a linkchecker, making sure all links, CSS files and images exist

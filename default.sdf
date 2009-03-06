@@ -1,0 +1,190 @@
+# Default error checks for SWEC
+# 
+# All error checks that are bundled with SWEC should be prefixed with SWEC_.
+# This is so that:
+# 1) They can be easily distinguished from user supplied rules, and bug reports
+#    go to the right place
+# 2) To allow the user to have a relatively uncluttered namespace in which
+#    to define their own rules
+#
+# This file is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This file is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+
+# Some sites return a 404 page without returning a 404 HTTP status code
+[SWEC_404]
+type = regexs
+check = 404(:)? file not found
+check = file not found
+error = This file/resource appears not to exist
+sortindex = 999
+
+# This is the closest we can get to detecting random unhandled internal
+# errors without getting way too fuzzy.
+[SWEC_OTHER_INTERNAL_ERROR]
+type = regexs
+check = Internal (server )?(error|failure)
+error = Internal error
+sortindex = 997
+
+[SWEC_DATABASE_ERROR]
+type = regexs
+check = (Failed|Unable) to connect to database
+error = Failed to connect to database
+sortindex = 200
+
+[SWEC_FILE_LENGTH]
+type = minlength
+check = 100
+error = Page was strangely short (less than 100 characters)
+sortindex = 20
+
+# HTML::Mason
+[SWEC_MASON_ERROR]
+type = regexs
+check = HTML::Mason::Request
+error = HTML::Mason error
+sortindex = 60
+
+[SWEC_MASON_PARAM]
+type = regexs
+check = no value sent for required parameter.*Mason
+error = Mason template was missing a required parameter
+sortindex = 40
+
+[SWEC_MASON_EXCEPTION]
+type = regexs
+check = HTML::Mason::Exceptions
+error = HTML::Mason exception
+sortindex = 49
+
+[SWEC_MASON_OPEN]
+type = regexs
+check = could not open file .* for reading
+error = Page failed to open a file for reading
+sortindex = 42
+
+[SWEC_MASON_INCLUDE]
+type = regexs
+check = could not find component for path
+error = Page appears to have a failed mason <& &> or ->comp() call
+sortindex = 40
+
+[SWEC_SYSTEM_ERROR]
+type = regexs
+check = system error
+error = Mason-related, or other system error
+sortindex = 990
+
+# Catalyst
+[SWEC_CATALYST_CONTROLLER_EXCEPTION]
+type = regexs
+check = Caught exception in.*Controller.*Request.*Catalyst
+error = Exception in Catalyst controller
+sortindex = 11
+
+[SWEC_CATALYST_EXCEPTION]
+type = regexs
+check = Caught exception in.*Request.*Catalyst
+error = Catalyst exception
+sortindex = 12
+
+[SWEC_CATALYST_ERROR]
+type = regexs
+check = Catalyst::Request
+check = Catalyst::Response
+error = Catalyst error
+sortindex = 35
+
+[SWEC_CATALYST_FRIENDLYERROR]
+type = regexs
+check = \(en\) Please come back later
+error = Possible Catalyst error (looks like the user friendly catalyst error page)
+sortindex = 1000
+
+# Perl
+[SWEC_DBI_ERROR]
+type = regexs
+check = DBI Exception
+check = DBD::mysql::st execute failed
+error = DBI error
+sortindex = 50
+
+[SWEC_DBIXC_ERROR]
+type = regexs
+check = DBIx::Class::ResultSet::(next|find|search)\(\): DBI Exception
+error = DBIx::Class error
+sortindex = 25
+
+[SWEC_PERL_CARP]
+type = regexs
+check = /usr/\w+/perl\d*?(/[^/]+)?/Carp/Clan.pm
+check = /usr/\w+/perl\d*?(/[^/]+)?/(CGI/)?Carp.pm
+error = Unknown perl error (Carp)
+sortindex = 999
+
+[SWEC_PERL_STRICTERR]
+type = regexs
+check = Can't use .* as a .* while "strict refs" in use
+error = Attempted invalid use of a variable while in perl strict
+sortindex = 15
+
+[SWEC_PERL_SCALAROBJ]
+type = regexs
+check = (ARRAY|HASH|SCALAR|GLOB)\(0x
+error = Appears to have printed perl references
+sortindex = 30
+
+# PHP
+[SWEC_PHP_INCLUDE]
+type = regexs
+check = failed to open stream
+check = function\.include
+error = Page appears to have a failed PHP include(). Referenced by %PARENT%.
+sortindex = 10
+
+[SWEC_PHP_DB]
+type = regexs
+check = (mysql|postgresql|sqlite)_connect
+error = Unknown database error
+sortindex = 100
+
+[SWEC_PHP_MAXCONN]
+type = regexs
+check = User .+ already has more than \'max_user_connections\' active connections
+error = Maximum database connections exceeded
+sortindex = 50
+
+# URL checks
+[SWEC_NEWLINEURI]
+type = urlrex
+check = \n
+error = URL with newlines, referenced by %PARENT%.
+sortindex = 10
+
+[SWEC_URI_SCALAROBJ]
+type = urlrex
+check = (ARRAY|HASH|SCALAR|GLOB)\(0x
+error = Strange URL, appears to have tried to use perl objects as scalars. Was referenced by %PARENT%.
+sortindex = 9
+
+[SWEC_URI_LOCALFILE]
+type = urlrex
+check = file\:\/\/
+error = URI points to a local file
+sortindex = 9
+
+[SWEC_URI_PERL_PKGNAME]
+type = urlrex
+check = Catalyst::Engine::
+error = Used perl package names in URL
+sortindex = 11

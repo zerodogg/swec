@@ -1,0 +1,1548 @@
+#!/usr/bin/perl
+# swec - Simple Web Error Checker
+# Copyright (C) Eskild Hustvedt 2008, 2009
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+use strict;
+use warnings;
+# Used to extract links
+use HTML::LinkExtractor;
+# Used to fetch data
+use LWP::UserAgent;
+# Used for cookie support
+use HTTP::Cookies;
+# Used for printing the error listing to the user
+use Data::Dumper;
+# Used for commandline parsing
+use Getopt::Long;
+# Used for session support
+use Storable;
+# OS detection
+use POSIX qw(uname);
+# Need these to locate the default.sdf
+use Cwd qw(realpath);
+use File::Basename qw(dirname);
+# Makes code easier to read
+use constant {
+	true => 1,
+	false => 0,
+};
+
+# Signal handling
+$SIG{INT} = \&ErrorReport;
+$SIG{TERM} = \&ErrorReport;
+
+# The version number
+my $VERSION = '0.2.1';
+# The base URI
+my $baseURI;
+# The same in regex
+my $baseURIRegex;
+# Hash of URLs that have been processed
+my %HasRun;
+# Hash of URLs that are known but has not yet been processed
+my %CurrLinks;
+# List of URLs with errors and their error messages
+my %ErrorPages;
+# List of base URLs and the number of errors that have occured
+my %ErrorCount;
+# List of base URLs and the number of pages fetched
+my %PageCount;
+# List of page seeds
+my @PageSeeds;
+# Hash of page seeds, used for checking if something was a seed
+my %wasPageSeed;
+# True if we have run the error report. We don't set this to false until
+# after we've started processing pages, no need to display an empty
+# report.
+my $hasRunErrorRep = true;
+# The hard max number of pages to fetch for each page type
+my $HardMax = 30;
+# The soft max number of pages to fetch for each page type
+my $SoftMax = 20;
+# The hard number of max errors that can occur on a page type before we
+# assume that all pages of that type has errors
+my $HardErrorMax = 5;
+# The base user agent string
+my $BaseUA = 'Mozilla/5.0 (compatible; swec - Simple Web Error Checker-perl with LWP, %OS% (spider/crawler)) giveme ';
+# Appended to the user agent, can be changed with commandline options
+my $GiveMeUA = 'Firefox/Gecko';
+# The logfile
+my $logfile;
+# The regex of filenames to ignore
+my $ignoreregex = '\.(png|exe|run|gif|pdf|phps|deb|rpm|bin|jpe?g|css|bz2|gz|tar|tgz|zip|rar|odt|odp|doc|psp|swf|js|patch|vim)';
+# The session hashref, if we have a session
+my $session;
+# The session filename, if we have a session
+my $session_file;
+# Boolean. True if we should only print information about new errors
+my $OnlyNewErrors = false;
+my $SDFFile;
+# Debugging is off by default
+my $Debug = false;
+# The checks to ignore
+my %IgnoreChecks;
+# Filter checks, loaded from an SDF file.
+# See the manpage for a definition of the SDF file format.
+# The syntax of this hash is:
+# NAME => {
+#	sdf_setting => sdf_value,
+# }
+# Checks will be present in this hash, even if they are suppose to be ignored
+# (ie. it exists in the %IgnoreChecks hash), but will be skipped at runtime.
+my %Checks;
+
+my %MatchMax;
+my %MatchedMax;
+# This is an array that we use in order to not have to sort the %Checks hash
+# each and every time it is run. This should never be put into a session,
+# but be resorted on each load.
+# It's simply an array of names.
+my @DefaultSortedChecks;
+# The same, but for URL tests
+my @URLSortedChecks;
+# List of loaded SDF files
+my @LoadedSDF;
+
+# Display the help screen if no args were supplied.
+help() if not @ARGV;
+
+# Commandline parsing
+GetOptions
+(
+	'ie' => sub {
+		$GiveMeUA = 'MSIE/Internet Explorer';
+	},
+	'opera' => sub {
+		$GiveMeUA = 'Opera';
+	},
+	'ua=s' => sub {
+		shift;
+		$BaseUA = shift;
+		$GiveMeUA = ' (swec - Simple Web Error Checker-perl/LWP)';
+	},
+	'session=s' => \$session_file,
+	'i|sessnam=s' => sub {
+		shift;
+		my $nam = shift;
+		$session_file = $nam.'.ses';
+		$logfile = $nam.'.log';
+	},
+	's|urlseed=s' => sub {
+		shift;
+		my $u = shift;
+		if(not $u =~ /^http/)
+		{
+			if ($baseURI)
+			{
+				$u = $baseURI.'/'.$u;
+				$u =~ s#/+#/#g;
+				$u =~ s#^(https?):/#$1://#g;
+			}
+			else
+			{
+				die("--urlseed does not contain http:// and no --baseurl was found. Try specifying --baseurl before --urlseed.\n");
+			}
+		}
+		push(@PageSeeds,$u);
+	},
+	'm|matchmax=s' => sub {
+		shift;
+		my $match = shift;
+		my $no = $match;
+		my $reversed = 0;
+		if(not $match =~ s/=\d+$//)
+		{
+			die("Failed to parse commandline: --matchmax $match\n");
+		}
+		if(not $no =~ s/^.*=(\d+)$/$1/)
+		{
+			die("Failed to parse commandline: --matchmax $no\n");
+		}
+		if ($match =~ s/^!//)
+		{
+			$reversed = 1;
+		}
+		$_ = '';
+		eval
+		{
+			/$match/
+		};
+		if ($@)
+		{
+			die("Regular expression error in --matchmax: $@");
+		}
+		$MatchMax{$match} = {
+			max => $no,
+			reversed => $reversed,
+		};
+		$MatchedMax{$match} = 0;
+	},
+	'b|baseurl|baseuri=s' => \$baseURI,
+	'l|log=s' => \$logfile,
+	'p|softpagelimit=i' => \$SoftMax,
+	'h|hardpagelimit=i' => \$HardMax,
+	'e|harderrorlimit=i' => \$HardErrorMax,
+	'parsedump=s' => sub {
+		shift;
+		my $file = shift;
+		LoadSDF($file,\%Checks);
+		$Data::Dumper::Sortkeys = true;
+		$Data::Dumper::Varname = 'SDF_PARSE_DUMP';
+		$Data::Dumper::Terse = true;
+		$Data::Dumper::Indent = 1;
+		print Dumper(\%Checks);
+		exit(0);
+	},
+	'validate=s' => sub {
+		shift;
+		my $file = shift;
+		local $| = true;
+		print "$file ";
+		LoadSDF($file,\%Checks);
+		foreach my $en (sort keys %Checks)
+		{
+			# Get a ref to the hash
+			my $ec = $Checks{$en};
+			# Regex check
+			if ($ec->{type} =~ /^(urlrex|regex(s))?$/)
+			{
+				foreach my $regex (@{$ec->{check}})
+				{
+					$_ = '1';
+					eval
+					{
+						/$regex/;
+					};
+					if ($@)
+					{
+						die("Error in regex for $en: $@\n");
+					}
+				}
+			}
+			# Minlength check
+			elsif ($ec->{type} eq 'minlength')
+			{
+				if($ec->{check} =~ /\D/)
+				{
+					die("Check needs to be an integer\n");
+				}
+			}
+			else
+			{
+				die("Unknown typecheck: $ec->{type} from $en\n");
+			}
+		}
+		print "syntax OK\n";
+		exit(0);
+	},
+	'debuginfo' => sub {
+		debugInfo();
+	},
+	'x|exclude=s' => sub {
+		shift;
+		my $t = shift;
+		$IgnoreChecks{$t} = true;
+	},
+	'onlynew' => \$OnlyNewErrors,
+	'help' => \&help,
+	'help-all' => sub { help(1) },
+	'version' => sub { print "SWEC version $VERSION\n"; exit 0; },
+) or exit(1);
+
+# Initialize session
+if(defined $session_file and not -e $session_file)
+{
+	print "$session_file: does not exist. Assuming new session.\n";
+	$session = {};
+}
+else
+{
+	loadSession();
+}
+# Code block initializing $baseURI
+{
+	# If we make an assumption about something, this should be set to true
+	# and we will output a message about it at the end of this block.
+	my $madeAssumption = false;
+	my $useURLSeed;
+	# If we don't have a $baseURI then we need to find one
+	if(not $baseURI)
+	{
+		# Fetch from session if present
+		if ($session and $session->{baseuri})
+		{
+			$baseURI = $session->{baseuri};
+		}
+		else
+		{
+			# Try to fetch from parameters
+			if (@ARGV)
+			{
+				$baseURI = shift(@ARGV);
+				$madeAssumption = true;
+			}
+			# Give up
+			if (not $baseURI)
+			{
+				die("You must supply a --baseurl\n");
+			}
+			if(not @PageSeeds)
+			{
+				$useURLSeed = $baseURI;
+				$baseURI =~ s{^((\w+\:+/+)?[^/]+).*}{$1};
+				# If our baseURI is the same as the URL seed here, then 
+				# we don't have additional URI bits, so don't set useURLSeed.
+				if($baseURI eq $useURLSeed)
+				{
+					$useURLSeed = undef;
+				}
+			}
+		}
+	}
+	# Make sure that it starts with something://, if not, assume http://
+	if(not $baseURI =~ m#^\w+://#)
+	{
+		$baseURIRegex = '(http://)?'.'(www\.)?'.$baseURI;
+		$baseURI = 'http://'.$baseURI;
+		if ($useURLSeed)
+		{
+			$useURLSeed = 'http://'.$useURLSeed;
+		}
+		$madeAssumption = true;
+	}
+	if(not $baseURIRegex)
+	{
+		$baseURIRegex = $baseURI;
+	}
+	# Output a message that says we assumed something
+	if ($madeAssumption)
+	{
+		print "Assuming --baseurl $baseURI\n";
+	}
+	# Ensure we have at least one page seed and load from the session if needed
+	if(not @PageSeeds)
+	{
+		if ($session and keys(%{$session->{pageSeeds}}))
+		{
+			@PageSeeds = @{$session->{pageSeeds}};
+		}
+		else
+		{
+			if ($useURLSeed)
+			{
+				print "Assuming --urlseed $useURLSeed\n";
+				push(@PageSeeds,$useURLSeed);
+			}
+			else
+			{
+				print "Assuming --urlseed /\n";
+				push(@PageSeeds,$baseURI.'/');
+			}
+		}
+	}
+	if($session and not keys %MatchMax and $session->{MatchMax})
+	{
+		%MatchMax = %{$session->{MatchMax}};
+	}
+}
+setTermTitle('swec ['.$baseURI.']');
+# Load the SDF data
+AutoLoadSDF();
+# Set the UA string
+{
+	my @UNAME = uname();
+	my $name = $UNAME[0] eq 'Linux' ? 'GNU/Linux' : $UNAME[0];
+	$BaseUA =~ s/%OS%/$name/g;
+}
+# Create our LWP::UserAgent object, used for HTTP requests
+my $UA = LWP::UserAgent->new(
+	'agent' => $BaseUA.$GiveMeUA
+);
+# We need to support cookies
+$UA->cookie_jar(HTTP::Cookies->new());
+# We need to extract links from HTML
+my $EX = HTML::LinkExtractor->new();
+
+# Purge STDOUT at once
+$| = true;
+
+# We've begun processing, so now errors should be shown
+$hasRunErrorRep = false;
+
+# First fetch the seeds
+FetchLinks(\@PageSeeds);
+
+# Load data from the session if we have one
+if ($session)
+{
+	my %ErrorLinks;
+	# Import errors from session into ErrorLinks and run through those pages.
+	# (links found inside those pages will be appended to CurrLinks).
+	SessionImportLinks(\%ErrorLinks,true);
+	if(keys %ErrorLinks)
+	{
+		FetchLinks(\%ErrorLinks);
+	}
+	# Now import all other links saved in the session into CurrLinks
+	SessionImportLinks(\%CurrLinks,false);
+}
+# Finally, loop until there are no links left
+while(keys %CurrLinks)
+{
+	FetchLinks(\%CurrLinks);
+}
+# And output the error report
+ErrorReport();
+
+# Purpose: Set the title of the xterm/screen
+# Usage: setTermTitle(TITLE);
+sub setTermTitle
+{
+	return if not defined $ENV{TERM};
+	my $title = shift;
+	if ($ENV{TERM} =~ /screen/)
+	{
+		print "\033k$title\033\\";
+	}
+	else
+	{
+		print "\033]0;$title\007";
+	}
+}
+
+# Purpose: Output information useful for debugging
+# Usage: debuginfo();
+sub debugInfo
+{
+	print "SWEC version $VERSION\n";
+	exit(0);
+}
+
+# Purpose: Output the help screen and exit
+# Usage: help();
+sub help
+{
+	my $all = shift;
+	print "swec - Simple Web Error Checker version $VERSION\n\n";
+	print "USAGE: swec [OPTIONS]\n";
+	print " OR  : swec [HOST]\n\n";
+	if ($all)
+	{
+		PrintHelp('','--help','Print the normal help screen');
+		PrintHelp('','--help-all','Print this help screen');
+		PrintHelp('','--version','Print version information and exit');
+	}
+	else
+	{
+		PrintHelp('','--help','Print this help screen');
+		PrintHelp('','--help-all','Print an extended help screen with advanced options');
+	}
+	PrintHelp('','--ie','Pretend to be IE (default: firefox)');
+	PrintHelp('','--opera','Pretend to be Opera (default: firefox)');
+	PrintHelp('','--ua','Manually specify user agent string');
+	PrintHelp('-b','--baseurl','The base URL. Will only check URLs matching it and will use it as the domain/url for pages that have relative paths');
+	PrintHelp('-s','--urlseed','The URL seed, the first URL to check. Can be supplied multiple times, order does not matter. Supply -b before -s in order to be able to supply relative paths');
+	PrintHelp('-l','--log','Write a log to this file');
+	PrintHelp('','--session','Save and load session from the file supplied. See the manpage for more information on sessions.');
+	PrintHelp('-i','--sessnam','Takes a FILE argument. Short for --session FILE.ses --log FILE.log');
+	PrintHelp('-x','--exclude','Exclude the test ID supplied');
+	if ($all)
+	{
+		PrintHelp('-p','--softpagelimit','Change the soft page limit, the max amount of pages of any link type to request, this may be exceeded but swec will try not to (default: 20).');
+		PrintHelp('-h','--hardpagelimit','Change the hard page limit, the max amount of pages of any link type to request, this should never be exceeded (default: 30).');
+		PrintHelp('-e','--harderrorlimit','Change the hard error page limit, the max amount of pages of any link type to request before deciding that all pages of that type will return errors (and thus not request any more) (default: 5)');
+		PrintHelp('-m','--matchmax','Takes a parameter in the form: [REGEXP]=COUNT. [REGEXP] will be matched against all URLs, and SWEC will never test more than COUNT URLs that matches [REGEXP]');
+		PrintHelp('','--validate','Takes a FILE argument. Validate the syntax of the SDF file supplied');
+		PrintHelp('','--parsedump','Takes a FILE argument. Load the SDF file supplied and dump the parsed data structure to STDOUT. Useful for debugging problems with regular expressions, or simply to see how SWEC sees your SDF file');
+	}
+	exit(0);
+}
+
+# Purpose: Get the real URL for the URL pair supplied
+# Usage: my $URL = GetRealUrl(PARENT, CHILD);
+sub GetRealUrl
+{
+	my $URL = shift;
+	my $parent = shift;
+	if( $URL =~ m#^(/|https?)# )
+	{
+		return $URL;
+	}
+	$parent = getBaseURL($parent);
+	$parent =~ s/^https?:\/\/[^\/]+//;
+	if ($parent =~ /\/$/)
+	{
+		return ($parent.$URL);
+	}
+	elsif($URL =~ /^\?/)
+	{
+		$parent =~ s/\?.*//;
+		return $parent.$URL;
+	}
+	elsif ($parent =~ /\w+\.\w+$/)
+	{
+		$parent =~ s/\/+\w+\.\w+$//;
+		return ($parent.'/'.$URL);
+	}
+	else
+	{
+		# This might not be quite right, though hopefully it is.
+		return $parent.'/'.$URL;
+	}
+}
+
+# Purpose: Persistant wrapper around LWP. Will re-request a URL three times with
+#   three second intervals if needed
+# Usage: LWP_Request('type',URL);
+# type is either head or get
+sub LWP_Request
+{
+    my($type,$URL) = @_;
+    my $r;
+    for(my $l = 0; $l < 3; $l++)
+    {
+        if ($l != 0)
+        {
+            if ($l == 1)
+            {
+                print "connection error - ";
+            }
+            print "retrying... ";
+            sleep(3);
+        }
+        if ($type eq 'head')
+        {
+            $r = $UA->head($URL);
+        }
+        elsif($type eq 'get')
+        {
+            $r = $UA->get($URL);
+        }
+        else
+        {
+            die("LWP_Request(): unknown type: $type");
+        }
+        if (not (($r->is_error) && ($r->status_line =~ /(reset by peer|Connection refused|Can't connect)/i)))
+        {
+            last;
+        }
+    }
+    return $r;
+}
+
+# Purpose: Output the final error report and logfile, also call session writing functions
+# Usage: ErrorReport();
+sub ErrorReport
+{
+	my %Errors = %ErrorPages;
+	my $rep;
+	$hasRunErrorRep = true;
+	print "\n---\n\n";
+	$rep .= $baseURI.":\n";
+	$rep .= 'Out of '.scalar(keys(%HasRun)).' pages fetched, '.scalar(keys(%ErrorPages)).' had errors'."\n";
+	$rep .= 'Out of '.scalar(keys(%PageCount)).' base pages checked '.scalar(keys(%ErrorCount)).' had errors'."\n";
+	if ($OnlyNewErrors && $session)
+	{
+		SesRemoveOldErrors(\%Errors);
+	}
+	if(keys %Errors)
+	{
+		$Data::Dumper::Sortkeys = true;
+		$Data::Dumper::Varname = 'ERRORS';
+		$Data::Dumper::Terse = true;
+		$Data::Dumper::Indent = 1;
+		appendToSession('ErrorPages',\%Errors);
+		$rep .= Dumper(\%Errors);
+	}
+	else
+	{
+		$rep .= "\nNo errors to report.\n";
+	}
+	print $rep;
+	if(keys %ErrorPages)
+	{
+		appendToSession('LastRawErrorPages',\%ErrorPages,true);
+	}
+	appendToSession('lasthumanlog',$rep);
+	appendToSession('baseuri',$baseURI);
+	appendToSession('logfile',$logfile);
+	appendToSession('pageSeeds',\@PageSeeds);
+	appendToSession('HasRun',\%HasRun);
+	appendToSession('HardMax',$HardMax);
+	appendToSession('SoftMax',$SoftMax);
+	appendToSession('HardErrorMax',$HardErrorMax);
+	appendToSession('BaseUA',$BaseUA);
+	appendToSession('GiveMeUA',$GiveMeUA);
+	appendToSession('LoadedSDF',\@LoadedSDF);
+	appendToSession('MatchMax',\%MatchMax);
+	if ($Debug)
+	{
+		appendToSession('Debug_SDF',\%Checks,true);
+	}
+	writeSession();
+	if ($logfile)
+	{
+		open (my $rf,'>',$logfile) or die('Failed to open '.$logfile.' for writing: '.$!);
+		print {$rf} $rep;
+		print {$rf} "\n\nDumps:\n";
+		print {$rf} 'Used UA: '. $BaseUA.$GiveMeUA ."\n";
+		print {$rf} "HasRun:\n".Dumper(\%HasRun);
+		print {$rf} "\nErrorCount:\n".Dumper(\%ErrorCount);
+		print {$rf} "\nPageCount:\n".Dumper(\%PageCount);
+		print {$rf} "\nSeeds:\n".Dumper(\@PageSeeds);
+		close($rf);
+		print "Log written to $logfile\n";
+	}
+	exit(0);
+}
+
+# Purpose: Extract links from a page and insert them into %CurrLinks
+# Usage: ExtractLinks(CONTENTS_TO_EXTRACT_FROM, URL_OF_CONTENT);
+sub ExtractLinks
+{
+	my $contents = shift;
+	my $url = shift;
+	$EX->parse(\$contents);
+	foreach my $l (@{$EX->links})
+	{
+		my $href = $l->{href};
+		next if not $href;
+		next if $href =~ /^(mailto|javascript|ftp|irc|feed):/i;
+		next if $href eq '#';
+		next if $href =~ /$ignoreregex$/;
+		$href =~ s/\#\w*$//;
+		if(not $wasPageSeed{$href})
+		{
+			$href = GetRealUrl($href,$url);
+		}
+		if(not $href =~ m#^\w+://#)
+		{
+			$href = $baseURI.'/'.$href;
+			$href =~ s#/+#/#g;
+			$href =~ s#^(https?):/#$1://#g;
+		}
+		my $base = getBaseURL($href);
+		# Don't fetch a page that has had errors more than $HardErrorMax times and don't fetch any page more than $SoftMax times.
+		if ((defined $ErrorCount{$base} && $ErrorCount{$base} > $HardErrorMax) or (defined $PageCount{$base} && $PageCount{$base} > $SoftMax))
+		{
+			next;
+		}
+		next if $HasRun{$href};
+		# Run checks
+		my $err;
+		foreach my $en (@URLSortedChecks)
+		{
+			# Get a ref to the hash
+			my $ec = $Checks{$en};
+			foreach my $regex (@{$ec->{check}})
+			{
+				if ($href =~ /$regex/i)
+				{
+					$err = $ec->{error};
+					last;
+				}
+			}
+			if ($err)
+			{
+				$err =~ s/%PARENT%/$url/g;
+				AddError($href,$err,$en,true);
+				last;
+			}
+		}
+		# Check MatchMax
+		if(not $CurrLinks{$href})
+		{
+			my $skip = 0;
+			foreach my $check (keys %MatchMax)
+			{
+				my $result = 0;
+				if (not $MatchMax{$check}->{reversed} and $href =~ /$check/)
+				{
+					$result = 1;
+				}
+				elsif ($MatchMax{$check}->{reversed} and not $href =~ /$check/)
+				{
+					$result = 1;
+				}
+
+				if ($result)
+				{
+					$MatchedMax{$check}++;
+					if ($MatchMax{$check}->{max} <= $MatchedMax{$check})
+					{
+						$skip = 1;
+					}
+				}
+			}
+			next if $skip;
+		}
+		if(not $err)
+		{
+			$CurrLinks{$href} = $url;
+		}
+	}
+}
+
+# Purpose: Get the base URL of a page
+# Usage: $url = getBaseURL($url);
+sub getBaseURL
+{
+	my $URL = shift;
+	$URL =~ s/\#.*$//;
+	$URL =~ s/\?.*$//;
+	return $URL;
+}
+
+# Purpose: Add an error to the list
+# Usage: AddError(URL, ERROR, TEST, SILENT?);
+# If SILENT is true it will not print "error\n";
+sub AddError
+{
+	my $URL = shift;
+	my $error = shift;
+	my $test = shift;
+	my $silent = shift;
+	if ($IgnoreChecks{$test})
+	{
+		if(not $silent)
+		{
+			print "error - ignored\n";
+		}
+		return;
+	}
+	my $base = getBaseURL($URL);
+	$ErrorPages{$URL} = $error.' ['.$test.']';
+	$ErrorCount{$base}++;
+	if(not $silent)
+	{
+		print 'error ['.$test."]\n";
+	}
+}
+
+# Purpose: Loop over a hash or array of links and fetch each one in turn, running checks on the content recieved
+# Usage: FetchLinks(\%hashOfLinks OR \@arrayOfLinks);
+sub FetchLinks
+{
+	my $source = shift;
+	if (ref($source) eq 'ARRAY')
+	{
+		# We need a hash for FetchLink
+		my $fakeSource = {};
+		foreach my $URL (@{$source})
+		{
+			$fakeSource->{$URL} = 'seed';
+			$wasPageSeed{$URL} = true;
+			FetchLink($URL,$fakeSource);
+		}
+	}
+	elsif(ref($source) eq 'HASH')
+	{
+		foreach my $URL(sort keys %{$source})
+		{
+			FetchLink($URL,$source);
+		}
+	}
+	else
+	{
+		die('Fatal: FetchLinks got unknown reference: '.ref($source));
+	}
+}
+
+# Purpose: Loop over a hash of links and fetch each in turn, running checks on the content recieved
+# Usage: FetchLink(\%hashOfLinks);
+sub FetchLink
+{
+	my $URL = shift;
+	my $source = shift;
+	if (defined $HasRun{$URL} or not $URL =~ /^$baseURIRegex/ or $URL =~ /(logout|delete)/)
+	{
+		delete($source->{$URL});
+		return;
+	}
+	my $base = getBaseURL($URL);
+	$PageCount{$base}++;
+	if ($PageCount{$base} >= $HardMax)
+	{
+		delete($source->{$URL});
+		return;
+	}
+    (my $prettyURL = $URL) =~ s/^https?:\/\/[^\/]+//;
+    printf('- %-30s : ',$prettyURL);
+	my $c = LWP_Request('head',$URL);
+	$HasRun{$URL} = $source->{$URL};
+	my @realError;
+	if(not $c->is_success)
+	{
+		if(not ref($c) eq 'HTTP::Response')
+		{
+			@realError = ($URL,'Failed to fetch page and LWP returned a strange object of type '.ref($c).'. This is possibly a bug, either in swec or LWP. Dumping object:'."\n".Dumper($c), 'SWEC_INT_STRANGEOBJ');
+		}
+		else
+		{
+			@realError = ($URL,'Failed to fetch page. LWP said: "'.$c->status_line.'" - page was referenced by: '.$source->{$URL},'SWEC_INT_HTTP_'.$c->code);
+		}
+	}
+	if(not $c->content_type =~ /(text|x?html|xml)/i)
+	{
+		if (@realError)
+		{
+			AddError(@realError);
+		}
+		else
+		{
+			print "skipped, non-HTML content-type\n";
+		}
+		return;
+	}
+	# Fetch the document
+	$c = LWP_Request('get',$URL);
+
+	my $err;
+	# Fetch content into a string
+	my $content = $c->content;
+	# Get the length
+	my $len = length($content);
+	# Prepare it for a lot of regular expressions
+	study($content);
+
+	foreach my $en (@DefaultSortedChecks)
+	{
+		# Get a ref to the hash
+		my $ec = $Checks{$en};
+		# Regex check
+		if ($ec->{type} =~ /^regex(s)?$/)
+		{
+			foreach my $regex (@{$ec->{check}})
+			{
+				if ($content =~ /$regex/is)
+				{
+					$err = $ec->{error};
+					last;
+				}
+			}
+		}
+		# Minlength check
+		elsif ($ec->{type} eq 'minlength')
+		{
+			if(length($content) < $ec->{check})
+			{
+				$err = $ec->{error};
+			}
+		}
+		else
+		{
+			die("Unknown typecheck: $ec->{type} from $en\n");
+		}
+		# If $err is defined then there's an error.
+		if (defined $err)
+		{
+			$err =~ s/%PARENT%/$source->{$URL}/g;
+			AddError($URL,$err,$en);
+			$err = true;
+			last;
+		}
+	}
+	if(not $err)
+	{
+		if (@realError)
+		{
+			AddError(@realError);
+		}
+		else
+		{
+			print "ok\n";
+			ExtractLinks($content,$URL);
+		}
+	}
+}
+
+# Purpose: Load a session from $session_file
+# Usage: loadSession();
+# Will simply return if $session_file is undef;
+sub loadSession
+{
+	return if not $session_file;
+	$session = retrieve($session_file) or die;
+	if(defined $baseURI && not $session->{baseuri} eq $baseURI)
+	{
+		die("Session appears to not be for $baseURI\n");
+	}
+	if(not $session->{sesver} == 1)
+	{
+		die("Session version unsupported\n");
+	}
+}
+
+# Purpose: Write the session to disk
+# Usage: writeSession();
+# Will simply return if there is no session.
+sub writeSession
+{
+	return if not $session;
+	$session->{sesver} = 1;
+	unlink($session_file) if -e $session_file;
+	store($session,$session_file) or die;
+}
+
+# Purpose: Remove old errors that has been reported in earlier sessions from the list of errors
+# Usage: SesRemoveOldErrors();
+# Simply returns if there is no session
+sub SesRemoveOldErrors
+{
+	my $new = shift;
+	foreach my $p (keys %{$session->{ErrorPages}})
+	{
+		if ($new->{$p} && $new->{$p} eq $session->{ErrorPages})
+		{
+			delete($new->{$p});
+		}
+	}
+}
+
+# Purpose: Import old links from the session
+# Usage: SessionImportLinks(\%HashToPutURLSInto, only_put_pages_with_known_errors?);
+sub SessionImportLinks
+{
+	return if not $session;
+	my $source = shift;
+	my $errorsOnly = shift;
+	if(not $errorsOnly and $session->{HasRun})
+	{
+		foreach my $URL(keys %{$session->{HasRun}})
+		{
+			if(not $source->{$URL} and not $HasRun{$URL})
+			{
+				$source->{$URL} = $session->{HasRun}->{$URL};
+			}
+		}
+	}
+	elsif ($session->{LastRawErrorPages})
+	{
+		# Ensure that the error pages are there
+		foreach my $URL(keys %{$session->{LastRawErrorPages}})
+		{
+			if(not $source->{$URL} and not $HasRun{$URL})
+			{
+				# Get info from HasRun if possible
+				if ($session->{HasRun}->{$URL})
+				{
+					$source->{$URL} = $session->{HasRun}->{$URL};
+				}
+				else
+				{
+					$source->{$URL} = 'Error page from previous session';
+				}
+			}
+		}
+	}
+}
+
+# Purpose: Append a value or hash to the session
+# Usage: appendToSession(NAME; SCALAR/ARRAY/HASHREF, replace?);
+# If it's a HASH and replace is false the contents of the hash will merely be appended
+sub appendToSession
+{
+	return if not $session;
+	my $name = shift;
+	my $href = shift;
+	my $overwrite = shift;
+	if(ref($href) eq 'HASH')
+	{
+		if ($overwrite)
+		{
+			delete($session->{$name});
+		}
+		foreach my $k (keys %{$href})
+		{
+			$session->{$name}->{$k} = $href->{$k};
+		}
+	}
+	else
+	{
+		$session->{$name} = $href;
+	}
+}
+
+# Purpose: Print formatted --help output
+# Usage: PrintHelp("-shortoption", "--longoption", "description");
+#  Description will be reformatted to fit within a normal terminal
+sub PrintHelp {
+	# The short option
+	my $short = shift,
+	# The long option
+	my $long = shift;
+	# The description
+	my $desc = shift;
+	# The generated description that will be printed in the end
+	my $GeneratedDesc;
+	# The current line of the description
+	my $currdesc = '';
+	# The maximum length any line can be
+	my $maxlen = 80;
+	# The length the options take up
+	my $optionlen = 20;
+	# Check if the short/long are LONGER than optionlen, if so, we need
+	# to do some additional magic to take up only $maxlen.
+	# The +1 here is because we always add a space between them, no matter what
+	if ((length($short) + length($long) + 1) > $optionlen)
+	{
+		$optionlen = length($short) + length($long) + 1;
+	}
+	# Split the description into lines
+	foreach my $part (split(/ /,$desc))
+	{
+		if(defined $GeneratedDesc)
+		{
+			if ((length($currdesc) + length($part) + 1 + 20) > $maxlen)
+			{
+				$GeneratedDesc .= "\n";
+				$currdesc = '';
+			}
+			else
+			{
+				$currdesc .= ' ';
+				$GeneratedDesc .= ' ';
+			}
+		}
+		$currdesc .= $part;
+		$GeneratedDesc .= $part;
+	}
+	# Something went wrong
+	die('Option mismatch') if not $GeneratedDesc;
+	# Print it all
+	foreach my $description (split(/\n/,$GeneratedDesc))
+	{
+		printf "%-4s %-15s %s\n", $short,$long,$description;
+		# Set short and long to '' to ensure we don't print the options twice
+		$short = '';$long = '';
+	}
+	# Succeed
+	return true;
+}
+
+# SDF parsing
+# Purpose: Die with a usable error from problems in an SDF
+# Usage: perr(error_text,line_no,file, boolean near_line?);
+sub perr
+{
+	my $error = shift;
+	my $lineno = shift;
+	my $file = shift;
+	my $near = shift(@_) ? 'near' : 'at';
+	die("SDF parser error: $error $near line $lineno in $file\n");
+}
+
+# Purpose: Validate data for a definition in an SDF
+# Usage: SDFParamValidate(\%Data,$name$file,$lineno);
+sub SDFParamValidate
+{
+	my $Data = shift;
+	my $name = shift;
+	my $file = shift;
+	my $lineno = shift;
+	# Needs at least one of each of these
+	foreach my $v(qw(type check error sortindex))
+	{
+		if(not defined $Data->{$name}{$v} or not length $Data->{$name}{$v})
+		{
+			my $l = $lineno-2;
+			perr('Required setting "'.$v.'" missing for '.$name,$l,$file,1);
+		}
+	}
+}
+
+# Purpose: Load an SDF file
+# Usage: my %Conf = LoadSDF(FILE);
+sub LoadSDF
+{
+	my $file = shift;
+	my $Data = shift;
+	printd("Loading SDF: $file");
+	if(not $Data)
+	{
+		$Data = {};
+	}
+	open (my $f, '<',$file) or die("Failed to open $file for reading: $!\n");
+	my $currnam;
+	my $currtype;
+	my $lineno = 0;
+	while ($_ = <$f>)
+	{
+		$lineno++;
+		next if /^#/;
+		next if not /\S/;
+		chomp;
+
+		if (/^\[/)
+		{
+			my $prevnam = $currnam;
+			$currtype = undef;
+			# This is a negative statement, add it to the ignore list.
+			if (/^\[\-/)
+			{
+				($currnam = $_) =~ s/(\[|\]|\-)*//g;
+				$IgnoreChecks{$currnam} = true;
+				printd("Added $currnam to the ignore list");
+				# We don't currently have a valid section.
+				$currnam = undef;
+			}
+			else
+			{
+				($currnam = $_) =~ s/(\[|\])*//g;
+				if ($Data->{$currnam})
+				{
+					perr('Duplicate definition of '.$currnam,$lineno,$file);
+				}
+				$Data->{$currnam} = {};
+			}
+			if ($prevnam)
+			{
+				SDFParamValidate($Data,$prevnam,$file,$lineno);
+			}
+		}
+		else
+		{
+			if(not $currnam)
+			{
+				perr('Data found before section name definition',$lineno,$file);
+			}
+			elsif(not /\=/)
+			{
+				perr('Unable to parse line, unknown data',$lineno,$file);
+			}
+			my $name = $_;
+			my $content = $_;
+			$name =~ s/^(\w+)\W.*$/$1/;
+			$content =~ s/^[^=]+=\s?//;
+			if(not $content =~ /\S/)
+			{
+				perr('Failed to parse setting content',$lineno,$file);
+			}
+			elsif(not $name =~ /\S/)
+			{
+				perr('Failed to parse setting name',$lineno,$file);
+			}
+			elsif($name eq $_ or $content eq $_)
+			{
+				perr('General line parsing error',$lineno,$file);
+			}
+			elsif ($name eq 'type')
+			{
+				if (not $content =~ /^(urlrex|regex(s)?|minlength)\s*$/)
+				{
+					perr('Unknown type specified, must be one of regex, minlength, urlrex',$lineno,$file);
+				}
+				$Data->{$currnam}{'type'} = $content;
+				$currtype = $content;
+			}
+			elsif (not $currtype)
+			{
+				perr('Data definitions located before type definition. type must be the first setting set for any definition because it changes how the rest is parsed',$lineno,$file);
+			}
+			else
+			{
+				if ($name eq 'check' && $currtype =~ /^(urlrex|regex(s))?$/)
+				{
+					if(not defined $Data->{$currnam}{'check'})
+					{
+						$Data->{$currnam}{'check'} = [];
+					}
+					if ($currtype eq 'regexs')
+					{
+						# "smart" regex
+						$content =~ s/\s+/ /g;
+						$content =~ s/ /(\\s+|&nbsp;|<[^>]+>)+/g;
+					}
+					push(@{$Data->{$currnam}{'check'}},$content);
+				}
+				else
+				{
+					if(defined $Data->{$currnam}{$name})
+					{
+						perr('Duplicate definition of '.$name,$lineno,$file);
+					}
+					$Data->{$currnam}{$name} = $content;
+				}
+			}
+		}
+	}
+	close($f);
+	if ($currnam)
+	{
+		SDFParamValidate($Data,$currnam,$file,$lineno);
+	}
+	push(@LoadedSDF,$file);
+	return true;
+}
+
+# Purpose: Auto load an SDF file, detecting the path and dying if it fails
+# Usage: AutoLoadSDF();
+sub AutoLoadSDF
+{
+	# Autodetect the default SDF
+	my $name = 'default.sdf';
+	my $loc = dirname(realpath($0));
+	if(not -e $loc)
+	{
+		die("Unable to locate directory containing swec\n");
+	}
+	elsif(not -e $loc.'/'.$name)
+	{
+		die("Unable to find $name\n");
+	}
+	LoadSDF($loc.'/'.$name,\%Checks);
+	# Check if the user has an ~/.swecrc
+	if (-e $ENV{HOME}.'/.swecrc')
+	{
+		if(not -r $ENV{HOME}.'/.swecrc')
+		{
+			die("~/.swecrc exists but is not readable\n");
+		}
+		LoadSDF($ENV{HOME}.'/.swecrc',\%Checks);
+	}
+	# Load the user supplied SDF if needed
+	if ($SDFFile)
+	{
+		if(not -e $SDFFile)
+		{
+			die("$SDFFile: does not exist\n");
+		}
+		elsif(not -r $SDFFile)
+		{
+			die("$SDFFile: is not readable\n");
+		}
+		LoadSDF($SDFFile,\%Checks);
+	}
+	GenerateSDFCache();
+}
+
+# Purpose: Generated the SDF cache in @DefaultSortedChecks and @URLSortedChecks
+# Usage: GenerateSDFCache();
+sub GenerateSDFCache
+{
+	foreach my $en (sort { $Checks{$a}->{sortindex} <=> $Checks{$b}->{sortindex} } keys(%Checks))
+	{
+		next if $IgnoreChecks{$en};
+		if ($Checks{$en}->{type} eq 'urlrex')
+		{
+			push(@URLSortedChecks,$en);
+		}
+		else
+		{
+			push(@DefaultSortedChecks,$en);
+		}
+	}
+}
+
+# Purpose: Print debugging info
+# Usage: printd(INFO);
+sub printd
+{
+	return;
+}
+
+# Including END so that in the case that there's a bug, ErrorReport will still be run.
+END
+{
+	if(not $hasRunErrorRep)
+	{
+		print "Crash detected. SWEC is unable to continue, dumping error report:\n";
+		ErrorReport();
+	}
+};
+__END__
+
+=head1 NAME
+
+swec - Simple Web Error Checker
+
+=head1 SYNOPSIS
+
+B<swec> [I<OPTIONS>]
+B<swec> [I<HOST>]
+
+=head1 DESCRIPTION
+
+SWEC is a program that automates testing of dynamic websites.
+It parses each HTML file it finds for links, and if those links are
+within the site specified (ie. local, not external), it will check that page
+as well. In this respect it works a lot like a crawler, in that it'll click
+on any link it finds (more notes about this later).
+
+In addition to parsing and locating links, it will also parse the pages looking
+for known errors and report those (such as Mason or PHP errors), and will report
+if a page can not be read (by either returning a 404, 500 or similar).
+
+Since you may often want SWEC to be logged in on your site, you have to be
+careful. When logged in, SWEC will still click on all links it finds, including
+things like 'join group' or 'delete account' (though it has some magic trying to
+avoid the latter). Therefore it is highly recommended that when you run SWEC as a
+logged-in user on a site, use a test server, not the live one.
+
+Running SWEC on a live site without being logged in as a user is perfectly fine,
+it won't do anything a normal crawler wouldn't do (well, not exactly true, SWEC
+will ignore robots.txt).
+
+=head1 OPTIONS
+
+=over
+
+=item B<--help>
+
+Print a quick help screen with the most common options
+
+=item B<--help-all>
+
+Print a help screen with all options
+
+=item B<--verion>
+
+Print version information and exit
+
+=item B<--ie, --opera>
+
+Pretend (somewhat) to be IE or Opera
+
+=item B<--ua> USERAGENT
+
+Use USERAGENT as the user agent, instead of the default one. The user agent
+you supply here will have a string that identifies it as SWEC appended to it,
+this can not be overridden without editing the source.
+
+=item B<-b, --baseurl>
+
+The base URL. Will only check URLs matching
+it and will use it as the domain/url for pages that have relative paths.
+
+=item B<-s, --urlseed>
+
+The URL seed, the first URL to check. Can be supplied multiple times,
+the URLs are checked in the order supplied on the commandline.
+Supply -b before -s in order to be able to supply relative paths.
+
+=item B<-p, --softpagelimit>
+
+Change the soft page limit, the max amount
+of pages of any link type to request, this may be exceeded but SWEC
+will try not to (default: 20).
+
+=item B<-h, --hardpagelimit>
+
+Change the hard page limit, the max amount of pages of any link type to request, this should never be exceeded
+(default: 30).
+
+=item B<-e, --harderrorlimit>
+
+Change the hard error page limit, the max amount of pages of any link type
+to request before deciding that all pages of that type will return errors
+(and thus not request any more) (default: 5)
+
+=item B<-m, --matchmax>
+
+This parameter lets you add advanced limits to the amount of pages that
+SWEC will check. It takes a parameter in the form:
+
+	[REGEX]=[COUNT]
+
+[REGEX] is a perl regular expression (which can be just a basic string as well)
+, optionally preceeded by a !. If REGEX starts with ! then the ! will be
+removed from the expression and it will be labeled as a reverse check.
+
+SWEC will only run on COUNT number of URLs that matches REGEX (or, if it is
+labeled as reverse, then only COUNT number of URLs that does NOT match REGEX).
+All others will be skipped after the URL tests are run (meaning that SWEC will
+not download those pages and will not run any tests on the pages itself).
+
+You can add as many --matchmax parameters as you want.
+
+Examples:
+
+=over
+
+=item --matchmax edit=300
+
+Check at most 300 URLs that contain the word 'edit'
+
+=item --matchmax '!admin=300'
+
+Check at most 300 URLs that does not contain the word 'admin'
+
+=item --matchmax '/files/get=0'
+
+Don't check any URL that matches /files/get
+
+=item --matchmax .=1000
+
+Don't check more than 1000 URLs
+
+=back
+
+If a URL matches multiple patterns, then each patterns counter will be increased.
+This means that if you have the setup '--matchmax files=30' and '--matchmax edit=200'
+and the url '/files/edit' then that will increase the counter for both files=30 and
+edit=200, because it matches both.
+
+=item B<-l, --log>
+
+Write a log of the session to this file.
+
+=item B<--session>
+
+Save and load session from the file supplied.
+
+=item B<-i, --sessnam>
+
+Takes a FILE argument. Short for --session FILE.ses --log FILE.log
+
+=item B<-x, --exclude>
+
+Exclude the test name supplied. The test name is the name inside of brackets ([NAME]) in the
+SDF files, and the name at the end of any error in the error report generated by swec.
+All predefined tests start with SWEC_.
+
+=item B<--validate>
+
+Takes a FILE argument. Validates the syntax of the SDF file supplied.
+
+=back
+
+=head1 SDF FILE FORMAT
+
+The file format used by SWEC is SDF (SWEC definition file). Its syntax is similar
+to INI-files, with some differences.
+
+It consists of definitions of various checks, each check definition starts with a
+[NAME] header, where NAME is the name of the test. The next line is required to be
+the type statement, and all checks must have at least one "check", "error" and 
+"sortindex" statement. The general syntax is:
+
+	[NAME]
+	statement = value
+
+=head2 STATEMENTS
+
+=over
+
+=item type
+
+This is the type of check. See the CHECKS section for a list of the various types.
+
+=item check
+
+This is a check of the type "type" (defined earlier). Some checks allow multiple
+check statements, see the CHECKS section
+
+=item error
+
+This is the error message you want reported to the user when the check finds something.
+You can use the following substitutions in the text.
+	%PARENT% = the file that referenced the file that contained the error being reported.
+
+=item sortindex
+
+This is used for sorting which checks are to be run first. SWEC-bundled checks will
+never have a negative sortindex value (but may have any positive value), so if you need
+your checks to run before the bundled ones, simply give them a sortindex of 0 or less.
+Lower values gets run first.
+
+=back
+
+=head2 CHECKS
+
+=over
+
+=item regex
+
+This is a full perl regex which is supplied the entire (raw, unparsed) HTML of the
+page being tested. You can supply multiple check= statements, where any of them
+will trigger the error if they match.
+
+All regular expression tests are run with the 'i' and 's' flags, making them
+case insensitive and treating the entire response as a single line.
+
+=item regexs
+
+This is the same as above, except that this one tries to be smart. It will convert
+any whitespace found in the regex to something that matches any whitespace,
+some &nbsp;, ignoring HTML tags and so on. This allows
+for more flexibility (and is probably the best choice for most searches), but
+has the downside of modifying your regular expression during runtime, adding
+more points of failure and taking some control away from you.
+
+=item urlrex
+
+This is the same as regex, but is checked against a URL instead of the contents
+of a page. This is the only test that checks against the URL instead of the content.
+As an example of its use, SWEC uses urlrex to check for URLs with odd characters, newlines or
+that reference file:/ instead of http(s):// and friends.
+
+=item minlength
+
+This is the minimum length of any file. check= is set to the minimum amount of characters
+you want any page to have.
+
+=back
+
+=head2 NEGATIVE DEFINITIONS
+
+You can specify that a check is never to be run in an SDF file (useful for
+overriding a bundled check for instance). The syntax is simply [-NAME].
+
+=head1 BUGS AND LIMITATIONS
+
+=over
+
+=item I<-> Does not respect robots.txt, swec assumes that the owner of the site is running it,
+and thus does not wish for swec to respect robots.txt.
+
+=back
+
+=head1 FILES
+
+=over
+
+=item I<~/.swecrc>
+
+The SWEC rc file. Uses the SDF format.
+
+=item I<default.sdf>
+
+The default SDF file containing the bundled definitions. This resides
+in the data dir containing swec. You can in most cases locate this directory
+by issuing:
+
+	 dirname $(readlink $(which swec))
+
+at a bash prompt. If that does not give any results then you need
+to search for the file yourself, or consult your distributions documentation.
+
+=back
+
+=head1 EXIT STATUS
+
+Returns 0 on success (meaning swec successfully completed,
+it does not indicate that SWEC didn't find any errors), any nonzero value on fatal error.
+
+=head1 AUTHOR
+
+SWEC was written by Eskild Hustvedt I<<eskild at the domain zerodogg dot org>>
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright (C) Eskild Hustvedt 2008, 2009
+
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

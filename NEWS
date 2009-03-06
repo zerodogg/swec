@@ -1,0 +1,50 @@
+SWEC 0.2.1
+- Minor fixes and enhancements to various tests.
+- Ensured that Mason tests are run after other relevant tests so that
+    errors from toolkits using mason for templating are properly
+    caught.
+- Now displays the error name while running the test so that it is possible
+    to know something about the errors occurring before the summary is printed.
+- Will now retry up to three times if a connection is refused or reset by peer
+- Made the status information while running easier to read by imposing a minimum
+    width and stripping out the domain/hostname
+- Added --matchmax - a flexible way to make SWEC only test a predefined number
+	of pages matching a regular expression
+
+SWEC 0.2
+- Now has one error code for each HTTP error (ie. SWEC_INT_HTTP_404)
+	instead of the generic SWEC_INT_FETCHFAILED. This lets you filter out
+	things like HTTP 404 errors, which might not be actual errors, but
+	rather the desired behaviour in some cases.
+- Seeds will now be checked in the order supplied on the commandline.
+	This allows you to first run a login page and then visit pages that
+	swec would otherwise not pick up (ie. because the links are generated
+	by JavaScript).
+- Now skips pages based on content-type, not just extension
+- New tests: SWEC_DBI_ERROR SWEC_DBIXC_ERROR SWEC_PERL_CARP SWEC_PHP_DB
+			SWEC_PHP_MAXCONN SWEC_URI_PERL_PKGNAME SWEC_CATALYST_FRIENDLYERROR
+- --baseuri is now an alias for --baseurl
+- Now makes much better assumptions as to what you want to do when you
+	supply a single URI that isn't just a domain on the commandline.
+	Ie. swec random.zerodogg.org/swec now becomes:
+		Assuming --baseurl http://random.zerodogg.org
+		Assuming --urlseed http://random.zerodogg.org/swec
+	instead of:
+		Assuming --baseurl http://random.zerodogg.org/swec
+		Assuming --urlseed /
+	You can still use the old behaviour by explicitly using
+	--baseurl and --urlseed.
+- Fixed an issue where --validate would produce different results from
+	when running the actual tests.
+- Now performs a http HEAD request before performing the GET request.
+
+SWEC 0.1.1
+- Minor fixes to the documnetation
+- Dropped the SWEC_STANDARD_ERROR test
+- Now processes error pages if present, only falling back to LWP errors
+	if that fails. This should give better diagnostics.
+- Improved and added various tests
+- Minor speedups
+
+SWEC 0.1
+- First public release
