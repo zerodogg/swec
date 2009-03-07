@@ -39,6 +39,6 @@ man:
 distrib: clean test man
 	mkdir -p swec-$(VERSION)
 	cp -r ./`ls|grep -v swec-$(VERSION)` ./swec-$(VERSION)
-	rm -rf `find swec-$(VERSION) -name \\.svn`
+	rm -rf `find swec-$(VERSION) -name \\.git`
 	tar -jcvf swec-$(VERSION).tar.bz2 ./swec-$(VERSION)
 	rm -rf swec-$(VERSION)
