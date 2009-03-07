@@ -427,7 +427,15 @@ sub setTermTitle
 # Usage: debuginfo();
 sub debugInfo
 {
+	eval('use Digest::MD5;');
 	print "SWEC version $VERSION\n";
+	my $md5 = Digest::MD5->new();
+	my $loc = realpath($0);
+	open(my $f,'<',$loc);
+	$md5->addfile($f);
+	my $digest = $md5->hexdigest;
+	close($f);
+	print "MD5: $digest\n";
 	exit(0);
 }
 
