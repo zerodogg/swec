@@ -127,8 +127,8 @@ sortindex = 25
 
 [SWEC_PERL_CARP]
 type = regexs
-check = /usr/\w+/perl\d*?(/[^/]+)?/Carp/Clan.pm
-check = /usr/\w+/perl\d*?(/[^/]+)?/(CGI/)?Carp.pm
+check = /usr/(\w+/)+perl\d*?(/[^/]+)?/Carp/Clan.pm
+check = /usr/(\w+/)+perl\d*?(/[^/]+)?/(CGI/)?Carp.pm
 error = Unknown perl error (Carp)
 sortindex = 999
 
