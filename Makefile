@@ -7,6 +7,12 @@ ifndef prefix
 # user and for root. It will also succeed for distro installs as long as
 # prefix is set by the builder.
 prefix=$(shell perl -e 'if($$< == 0 or $$> == 0) { print "/usr" } else { print "$$ENV{HOME}/.local"}')
+
+# Some additional magic here, what it does is set BINDIR to ~/bin IF we're not root
+# AND ~/bin exists, if either of these checks fail, then it falls back to the standard
+# $(prefix)/bin. This is also inside ifndef prefix, so if a prefix is supplied
+# (ie. meaning this is a packaging), we won't run this at all
+BINDIR ?= $(shell perl -e 'if(($$< > 0 && $$> > 0) and -e "$$ENV{HOME}/bin") { print "$$ENV{HOME}/bin";exit; } else { print "$(prefix)/bin"}')
 endif
 
 BINDIR ?= $(prefix)/bin
@@ -18,6 +24,10 @@ install:
 	cp swec "$(BINDIR)"
 	chmod 755 "$(BINDIR)/swec"
 	[  -e swec.1 ] && mkdir -p "$(DATADIR)/man/man1" && cp swec.1 "$(DATADIR)/man/man1" || true
+localinstall:
+	mkdir -p "$(BINDIR)"
+	ln -sf $(shell pwd)/swec $(BINDIR)/
+	[  -e swec.1 ] && mkdir -p "$(DATADIR)/man/man1" && ln -sf $(shell pwd)/swec.1 "$(DATADIR)/man/man1" || true
 # Uninstall an installed swec
 uninstall:
 	rm -f "$(BINDIR)/swec"
