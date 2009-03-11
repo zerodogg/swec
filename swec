@@ -116,6 +116,9 @@ my @URLSortedChecks;
 # List of loaded SDF files
 my @LoadedSDF;
 
+# Declare some additional global vars
+my($UA);
+
 # Display the help screen if no args were supplied.
 help() if not @ARGV;
 
@@ -256,6 +259,8 @@ GetOptions
 		my $t = shift;
 		$IgnoreChecks{$t} = true;
 	},
+	'lwphead' => \&LWP_CommandlineEmu,
+	'lwpget' => \&LWP_CommandlineEmu,
 	'onlynew' => \$OnlyNewErrors,
 	'help' => \&help,
 	'help-all' => sub { help(1) },
@@ -361,18 +366,8 @@ else
 setTermTitle('swec ['.$baseURI.']');
 # Load the SDF data
 AutoLoadSDF();
-# Set the UA string
-{
-	my @UNAME = uname();
-	my $name = $UNAME[0] eq 'Linux' ? 'GNU/Linux' : $UNAME[0];
-	$BaseUA =~ s/%OS%/$name/g;
-}
-# Create our LWP::UserAgent object, used for HTTP requests
-my $UA = LWP::UserAgent->new(
-	'agent' => $BaseUA.$GiveMeUA
-);
-# We need to support cookies
-$UA->cookie_jar(HTTP::Cookies->new());
+# Initialize LWP
+InitLWP();
 # We need to extract links from HTML
 my $EX = HTML::LinkExtractor->new();
 
@@ -467,6 +462,7 @@ sub help
 	PrintHelp('','--session','Save and load session from the file supplied. See the manpage for more information on sessions.');
 	PrintHelp('-i','--sessnam','Takes a FILE argument. Short for --session FILE.ses --log FILE.log');
 	PrintHelp('-x','--exclude','Exclude the test ID supplied');
+	PrintHelp('','--lwpget, --lwphead','SWEC equalents of the lwp-request GET and HEAD commands. See the manpage for more information');
 	if ($all)
 	{
 		PrintHelp('-p','--softpagelimit','Change the soft page limit, the max amount of pages of any link type to request, this may be exceeded but swec will try not to (default: 20).');
@@ -510,6 +506,55 @@ sub GetRealUrl
 		# This might not be quite right, though hopefully it is.
 		return $parent.'/'.$URL;
 	}
+}
+
+# Purpose: Emulate the commandline GET and HEAD lwp commands
+# Usage: \&LWP_CommandlineEmu in a parameter
+sub LWP_CommandlineEmu
+{
+	my $arg = shift;
+	InitLWP();
+	my $type = 'head';
+	if ($arg =~ /get/)
+	{
+		$type = 'get';
+	}
+	foreach my $url (@ARGV)
+	{
+		next if $url =~ /^\-\-\w+$/;
+		$url = ($url =~ /^http/) ? $url : 'http://'.$url;
+		print "\n--\n$url:\n--\n";
+		my $r = LWP_Request($type,$url);
+		print $r->headers_as_string;
+		if ($type eq 'get')
+		{
+			print "\n";
+			print $r->content;
+			if(not $r->content =~ /\n$/)
+			{
+				print "\n";
+			}
+		}
+	}
+	exit(0);
+}
+
+# Purpose: Initialize LWP
+# Usage: InitLWP();
+sub InitLWP
+{
+	# Set the UA string
+	{
+		my @UNAME = uname();
+		my $name = $UNAME[0] eq 'Linux' ? 'GNU/Linux' : $UNAME[0];
+		$BaseUA =~ s/%OS%/$name/g;
+	}
+	# Create our LWP::UserAgent object, used for HTTP requests
+	$UA = LWP::UserAgent->new(
+		'agent' => $BaseUA.$GiveMeUA
+	);
+	# We need to support cookies
+	$UA->cookie_jar(HTTP::Cookies->new());
 }
 
 # Purpose: Persistant wrapper around LWP. Will re-request a URL three times with
@@ -1424,6 +1469,18 @@ All predefined tests start with SWEC_.
 =item B<--validate>
 
 Takes a FILE argument. Validates the syntax of the SDF file supplied.
+
+=item B<--lwpget>, B<--lwphead> url1, url2, ..
+
+This is an SWEC implementation of the lwp-request HEAD and GET commands that come
+with LWP.
+
+The difference between this and LWP (other than that this one doesn't support
+any extra parameters) is that it is run using SWEC's LWP wrappers, so you get
+the added benifit of cookies, which means that you can supply a login URL first
+to examine how a request would be responded to after login. This is particulary
+useful to examine JSON or XML replies, or to check if the headers being replied
+are set properly.
 
 =back
 
