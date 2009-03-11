@@ -512,6 +512,10 @@ sub GetRealUrl
 # Usage: \&LWP_CommandlineEmu in a parameter
 sub LWP_CommandlineEmu
 {
+	# We need to set hasRunErrorRep to true, so if the user presses ctrl+c
+	# we won't run a useless error report.
+	$hasRunErrorRep = 1;
+
 	my $arg = shift;
 	InitLWP();
 	my $type = 'head';
@@ -602,6 +606,7 @@ sub ErrorReport
 {
 	my %Errors = %ErrorPages;
 	my $rep;
+	exit(0) if $hasRunErrorRep;
 	$hasRunErrorRep = true;
 	print "\n---\n\n";
 	$rep .= $baseURI.":\n";
