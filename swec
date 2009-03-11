@@ -1354,6 +1354,9 @@ Running SWEC on a live site without being logged in as a user is perfectly fine,
 it won't do anything a normal crawler wouldn't do (well, not exactly true, SWEC
 will ignore robots.txt).
 
+It also has various helpers to assist with some other basic debugging tasks,
+such as a cookie-supporting version of lwp-request's HEAD and GET commands.
+
 =head1 OPTIONS
 
 =over
