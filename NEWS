@@ -10,6 +10,8 @@ SWEC 0.2.1
     width and stripping out the domain/hostname
 - Added --matchmax - a flexible way to make SWEC only test a predefined number
 	of pages matching a regular expression
+- Added --lwphead and --lwpget parameters, which is basically the lwp-request
+	HEAD and GET commands, with cookie support
 
 SWEC 0.2
 - Now has one error code for each HTTP error (ie. SWEC_INT_HTTP_404)
