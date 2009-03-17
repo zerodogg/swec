@@ -462,7 +462,7 @@ sub help
 	PrintHelp('','--session','Save and load session from the file supplied. See the manpage for more information on sessions.');
 	PrintHelp('-i','--sessnam','Takes a FILE argument. Short for --session FILE.ses --log FILE.log');
 	PrintHelp('-x','--exclude','Exclude the test ID supplied');
-	PrintHelp('','--lwpget, --lwphead','SWEC equalents of the lwp-request GET and HEAD commands. See the manpage for more information');
+	PrintHelp('','--lwpget, --lwphead','SWEC equivalents of the lwp-request GET and HEAD commands. See the manpage for more information');
 	if ($all)
 	{
 		PrintHelp('-p','--softpagelimit','Change the soft page limit, the max amount of pages of any link type to request, this may be exceeded but swec will try not to (default: 20).');
