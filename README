@@ -1,17 +1,5 @@
 This is SWEC - Simple Web Error Checker.
 
----
-Installation
----
-
-To install swec, simply type make in this directory, to uninstall type make
-uninstall. To install only symlinks to the bins located in this directory
-type make localinstall.
-
----
-About
----
-
 SWEC is a program that automates testing of dynamic websites.  It parses each
 HTML file it finds for links, and if those links are within the site specified
 (ie. local, not external), it will check that page as well. In this respect it
