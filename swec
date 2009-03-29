@@ -262,7 +262,7 @@ GetOptions
 	'lwphead' => \&LWP_CommandlineEmu,
 	'lwpget' => \&LWP_CommandlineEmu,
 	'onlynew' => \$OnlyNewErrors,
-	'help' => \&help,
+	'help' => sub { help(); },
 	'help-all' => sub { help(1) },
 	'version' => sub { print "SWEC version $VERSION\n"; exit 0; },
 ) or exit(1);

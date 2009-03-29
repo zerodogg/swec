@@ -1,3 +1,7 @@
+SWEC 0.2.2
+- Fixed a bug causing --help to display the --help-all list instead of the
+	smaller --help list
+
 SWEC 0.2.1
 - Minor fixes and enhancements to various tests.
 - Ensured that Mason tests are run after other relevant tests so that
