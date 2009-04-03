@@ -1330,6 +1330,7 @@ swec - Simple Web Error Checker
 =head1 SYNOPSIS
 
 B<swec> [I<OPTIONS>]
+
 B<swec> [I<HOST>]
 
 =head1 DESCRIPTION
