@@ -1,6 +1,9 @@
 SWEC 0.2.2
 - Fixed a bug causing --help to display the --help-all list instead of the
 	smaller --help list
+- Fixed a bug that could cause external links to be counted towards --matchmax
+- Fixed a bug where links could potentially be matched towards --matchmax more
+	than once
 
 SWEC 0.2.1
 - Minor fixes and enhancements to various tests.

@@ -673,6 +673,9 @@ sub ExtractLinks
 {
 	my $contents = shift;
 	my $url = shift;
+	# Used to ensure we only process unique URLs
+	my %seen;
+
 	$EX->parse(\$contents);
 	foreach my $l (@{$EX->links})
 	{
@@ -698,7 +701,10 @@ sub ExtractLinks
 		{
 			next;
 		}
-		next if $HasRun{$href};
+		next if $seen{$href};
+		next if not shouldCheckURL($href);
+		$seen{$href} = 1;
+
 		# Run checks
 		my $err;
 		foreach my $en (@URLSortedChecks)
@@ -790,6 +796,18 @@ sub AddError
 	}
 }
 
+# Purpose: Check if we should run checks on the URL supplied
+# Usage: bool = shouldCheckURL(URL);
+sub shouldCheckURL
+{
+	my $URL = shift;
+	if (defined $HasRun{$URL} or not $URL =~ /^$baseURIRegex/ or $URL =~ /(logout|delete)/)
+	{
+		return false;
+	}
+	return true;
+}
+
 # Purpose: Loop over a hash or array of links and fetch each one in turn, running checks on the content recieved
 # Usage: FetchLinks(\%hashOfLinks OR \@arrayOfLinks);
 sub FetchLinks
@@ -825,7 +843,7 @@ sub FetchLink
 {
 	my $URL = shift;
 	my $source = shift;
-	if (defined $HasRun{$URL} or not $URL =~ /^$baseURIRegex/ or $URL =~ /(logout|delete)/)
+	if (not shouldCheckURL($URL))
 	{
 		delete($source->{$URL});
 		return;
