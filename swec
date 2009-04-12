@@ -627,11 +627,11 @@ sub ErrorReport
 		$Data::Dumper::Indent = 1;
 		appendToSession('ErrorPages',\%Errors);
 		$rep .= Dumper(\%Errors);
+		$returnVal = 1;
 	}
 	else
 	{
 		$rep .= "\nNo errors to report.\n";
-		$returnVal = 1;
 	}
 	print $rep;
 	if(keys %ErrorPages)
