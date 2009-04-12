@@ -156,7 +156,7 @@ GetOptions
 			}
 			else
 			{
-				die("--urlseed does not contain http:// and no --baseurl was found. Try specifying --baseurl before --urlseed.\n");
+				swecDie(10,"--urlseed does not contain http:// and no --baseurl was found. Try specifying --baseurl before --urlseed.\n");
 			}
 		}
 		push(@PageSeeds,$u);
@@ -168,11 +168,11 @@ GetOptions
 		my $reversed = 0;
 		if(not $match =~ s/=\d+$//)
 		{
-			die("Failed to parse commandline: --matchmax $match\n");
+			swecDie(10,"Failed to parse commandline: --matchmax $match\n");
 		}
 		if(not $no =~ s/^.*=(\d+)$/$1/)
 		{
-			die("Failed to parse commandline: --matchmax $no\n");
+			swecDie(10,"Failed to parse commandline: --matchmax $no\n");
 		}
 		if ($match =~ s/^!//)
 		{
@@ -185,7 +185,7 @@ GetOptions
 		};
 		if ($@)
 		{
-			die("Regular expression error in --matchmax: $@");
+			swecDie(10,"Regular expression error in --matchmax: $@");
 		}
 		$MatchMax{$match} = {
 			max => $no,
@@ -231,7 +231,7 @@ GetOptions
 					};
 					if ($@)
 					{
-						die("Error in regex for $en: $@\n");
+						swecDie(10,"Error in regex for $en: $@\n");
 					}
 				}
 			}
@@ -240,12 +240,12 @@ GetOptions
 			{
 				if($ec->{check} =~ /\D/)
 				{
-					die("Check needs to be an integer\n");
+					swecDie(10,"Check needs to be an integer\n");
 				}
 			}
 			else
 			{
-				die("Unknown typecheck: $ec->{type} from $en\n");
+				swecDie(10,"Unknown typecheck: $ec->{type} from $en\n");
 			}
 		}
 		print "syntax OK\n";
@@ -265,7 +265,7 @@ GetOptions
 	'help' => sub { help(); },
 	'help-all' => sub { help(1) },
 	'version' => sub { print "SWEC version $VERSION\n"; exit 0; },
-) or exit(1);
+) or exit(10);
 
 # Initialize session
 if(defined $session_file and not -e $session_file)
@@ -302,7 +302,7 @@ else
 			# Give up
 			if (not $baseURI)
 			{
-				die("You must supply a --baseurl\n");
+				swecDie(10,"You must supply a --baseurl\n");
 			}
 			if(not @PageSeeds)
 			{
@@ -590,7 +590,7 @@ sub LWP_Request
         }
         else
         {
-            die("LWP_Request(): unknown type: $type");
+            swecDie(10,"LWP_Request(): unknown type: $type");
         }
         if (not (($r->is_error) && ($r->status_line =~ /(reset by peer|Connection refused|Can't connect)/i)))
         {
@@ -607,6 +607,9 @@ sub ErrorReport
 	my %Errors = %ErrorPages;
 	my $rep;
 	exit(0) if $hasRunErrorRep;
+
+	my $returnVal = 0;
+
 	$hasRunErrorRep = true;
 	print "\n---\n\n";
 	$rep .= $baseURI.":\n";
@@ -628,6 +631,7 @@ sub ErrorReport
 	else
 	{
 		$rep .= "\nNo errors to report.\n";
+		$returnVal = 1;
 	}
 	print $rep;
 	if(keys %ErrorPages)
@@ -653,7 +657,7 @@ sub ErrorReport
 	writeSession();
 	if ($logfile)
 	{
-		open (my $rf,'>',$logfile) or die('Failed to open '.$logfile.' for writing: '.$!);
+		open (my $rf,'>',$logfile) or swecDie(10,'Failed to open '.$logfile.' for writing: '.$!);
 		print {$rf} $rep;
 		print {$rf} "\n\nDumps:\n";
 		print {$rf} 'Used UA: '. $BaseUA.$GiveMeUA ."\n";
@@ -664,7 +668,7 @@ sub ErrorReport
 		close($rf);
 		print "Log written to $logfile\n";
 	}
-	exit(0);
+	exit($returnVal);
 }
 
 # Purpose: Extract links from a page and insert them into %CurrLinks
@@ -833,7 +837,7 @@ sub FetchLinks
 	}
 	else
 	{
-		die('Fatal: FetchLinks got unknown reference: '.ref($source));
+		swecDie(9,'Fatal: FetchLinks got unknown reference: '.ref($source));
 	}
 }
 
@@ -920,7 +924,7 @@ sub FetchLink
 		}
 		else
 		{
-			die("Unknown typecheck: $ec->{type} from $en\n");
+			swecDie(9,"Unknown typecheck: $ec->{type} from $en\n");
 		}
 		# If $err is defined then there's an error.
 		if (defined $err)
@@ -954,11 +958,11 @@ sub loadSession
 	$session = retrieve($session_file) or die;
 	if(defined $baseURI && not $session->{baseuri} eq $baseURI)
 	{
-		die("Session appears to not be for $baseURI\n");
+		swecDie(10,"Session appears to not be for $baseURI\n");
 	}
 	if(not $session->{sesver} == 1)
 	{
-		die("Session version unsupported\n");
+		swecDie(10,"Session version unsupported\n");
 	}
 }
 
@@ -1097,7 +1101,7 @@ sub PrintHelp {
 		$GeneratedDesc .= $part;
 	}
 	# Something went wrong
-	die('Option mismatch') if not $GeneratedDesc;
+	swecDie(9,'Option mismatch') if not $GeneratedDesc;
 	# Print it all
 	foreach my $description (split(/\n/,$GeneratedDesc))
 	{
@@ -1118,7 +1122,28 @@ sub perr
 	my $lineno = shift;
 	my $file = shift;
 	my $near = shift(@_) ? 'near' : 'at';
-	die("SDF parser error: $error $near line $lineno in $file\n");
+	swecDie(2,"SDF parser error: $error $near line $lineno in $file\n");
+}
+
+# Purpose: Die with a preset return value
+# Usage: swecDie(value,error);
+sub swecDie
+{
+	my ($error, $returnval);
+	if (@_ > 1)
+	{
+		$returnval = shift;
+	}
+	$error = shift;
+	if ($returnval)
+	{
+		die($error);
+	}
+	else
+	{
+		warn($error);
+		exit($returnval);
+	}
 }
 
 # Purpose: Validate data for a definition in an SDF
@@ -1151,7 +1176,7 @@ sub LoadSDF
 	{
 		$Data = {};
 	}
-	open (my $f, '<',$file) or die("Failed to open $file for reading: $!\n");
+	open (my $f, '<',$file) or swecDie(10,"Failed to open $file for reading: $!\n");
 	my $currnam;
 	my $currtype;
 	my $lineno = 0;
@@ -1273,11 +1298,11 @@ sub AutoLoadSDF
 	my $loc = dirname(realpath($0));
 	if(not -e $loc)
 	{
-		die("Unable to locate directory containing swec\n");
+		swecDie(10,"Unable to locate directory containing swec\n");
 	}
 	elsif(not -e $loc.'/'.$name)
 	{
-		die("Unable to find $name\n");
+		swecDie(10,"Unable to find $name\n");
 	}
 	LoadSDF($loc.'/'.$name,\%Checks);
 	# Check if the user has an ~/.swecrc
@@ -1285,7 +1310,7 @@ sub AutoLoadSDF
 	{
 		if(not -r $ENV{HOME}.'/.swecrc')
 		{
-			die("~/.swecrc exists but is not readable\n");
+			swecDie(10,"~/.swecrc exists but is not readable\n");
 		}
 		LoadSDF($ENV{HOME}.'/.swecrc',\%Checks);
 	}
@@ -1294,11 +1319,11 @@ sub AutoLoadSDF
 	{
 		if(not -e $SDFFile)
 		{
-			die("$SDFFile: does not exist\n");
+			swecDie(10,"$SDFFile: does not exist\n");
 		}
 		elsif(not -r $SDFFile)
 		{
-			die("$SDFFile: is not readable\n");
+			swecDie(10,"$SDFFile: is not readable\n");
 		}
 		LoadSDF($SDFFile,\%Checks);
 	}
@@ -1602,6 +1627,10 @@ and thus does not wish for swec to respect robots.txt.
 
 =back
 
+=head1 INCOMPATIBILITIES
+
+Previous versions returns 0 even if some tests failed.
+
 =head1 FILES
 
 =over
@@ -1625,8 +1654,15 @@ to search for the file yourself, or consult your distributions documentation.
 
 =head1 EXIT STATUS
 
-Returns 0 on success (meaning swec successfully completed,
-it does not indicate that SWEC didn't find any errors), any nonzero value on fatal error.
+=over
+
+=item Returns 0 on success, if no errors occurred.
+
+=item Returns 1 on a failure during testing.
+
+=item Returns 10 on any general failure.
+
+=back
 
 =head1 AUTHOR
 
