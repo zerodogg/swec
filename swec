@@ -45,7 +45,7 @@ $SIG{INT} = \&ErrorReport;
 $SIG{TERM} = \&ErrorReport;
 
 # The version number
-my $VERSION = '0.2.2';
+my $VERSION = '0.3';
 # The base URI
 my $baseURI;
 # The same in regex
