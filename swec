@@ -76,9 +76,9 @@ my $SoftMax = 20;
 # assume that all pages of that type has errors
 my $HardErrorMax = 5;
 # The base user agent string
-my $BaseUA = 'Mozilla/5.0 (compatible; swec - Simple Web Error Checker-perl with LWP, %OS% (spider/crawler)) giveme ';
+my $BaseUA = 'SWEC/'.$VERSION.' (%OS%; Simple Web Error Checker/LWP; spider/crawler) giveme ';
 # Appended to the user agent, can be changed with commandline options
-my $GiveMeUA = 'Firefox/Gecko';
+my $GiveMeUA = 'Mozilla/5.0 Firefox/Gecko';
 # The logfile
 my $logfile;
 # The regex of filenames to ignore
@@ -431,6 +431,8 @@ sub debugInfo
 	my $digest = $md5->hexdigest;
 	close($f);
 	print "MD5: $digest\n";
+	setupUAString();
+	print 'User agent: '.$BaseUA.$GiveMeUA."\n";
 	exit(0);
 }
 
@@ -543,16 +545,21 @@ sub LWP_CommandlineEmu
 	exit(0);
 }
 
+# Purpose: Prepare the UA string
+# Usage: setupUAString();
+sub setupUAString
+{
+	# Set the UA string
+	my @UNAME = uname();
+	my $name = $UNAME[0] eq 'Linux' ? 'GNU/Linux' : $UNAME[0];
+	$BaseUA =~ s/%OS%/$name/g;
+}
+
 # Purpose: Initialize LWP
 # Usage: InitLWP();
 sub InitLWP
 {
-	# Set the UA string
-	{
-		my @UNAME = uname();
-		my $name = $UNAME[0] eq 'Linux' ? 'GNU/Linux' : $UNAME[0];
-		$BaseUA =~ s/%OS%/$name/g;
-	}
+	setupUAString();
 	# Create our LWP::UserAgent object, used for HTTP requests
 	$UA = LWP::UserAgent->new(
 		'agent' => $BaseUA.$GiveMeUA
