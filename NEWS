@@ -4,6 +4,8 @@ SWEC 0.3
 - Fixed a bug that could cause external links to be counted towards --matchmax
 - Fixed a bug where links could potentially be matched towards --matchmax more
 	than once
+- Cleaned up the user agent
+- The command now returns nonzero when a test fails
 
 SWEC 0.2.1
 - Minor fixes and enhancements to various tests.
