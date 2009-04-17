@@ -607,6 +607,17 @@ sub LWP_Request
     return $r;
 }
 
+sub swecDumper
+{
+	my $href = shift;
+	my $l = "\n";
+	foreach my $h (keys %{$href})
+	{
+		$l .= sprintf('%-30s => %s'."\n",$h,$href->{$h});
+	}
+	return $l;
+}
+
 # Purpose: Output the final error report and logfile, also call session writing functions
 # Usage: ErrorReport();
 sub ErrorReport
@@ -628,12 +639,8 @@ sub ErrorReport
 	}
 	if(keys %Errors)
 	{
-		$Data::Dumper::Sortkeys = true;
-		$Data::Dumper::Varname = 'ERRORS';
-		$Data::Dumper::Terse = true;
-		$Data::Dumper::Indent = 1;
 		appendToSession('ErrorPages',\%Errors);
-		$rep .= Dumper(\%Errors);
+		$rep .= swecDumper(\%Errors);
 		$returnVal = 1;
 	}
 	else
@@ -668,10 +675,10 @@ sub ErrorReport
 		print {$rf} $rep;
 		print {$rf} "\n\nDumps:\n";
 		print {$rf} 'Used UA: '. $BaseUA.$GiveMeUA ."\n";
-		print {$rf} "HasRun:\n".Dumper(\%HasRun);
-		print {$rf} "\nErrorCount:\n".Dumper(\%ErrorCount);
-		print {$rf} "\nPageCount:\n".Dumper(\%PageCount);
-		print {$rf} "\nSeeds:\n".Dumper(\@PageSeeds);
+		print {$rf} "HasRun:\n".swecDumper(\%HasRun);
+		print {$rf} "\nErrorCount:\n".swecDumper(\%ErrorCount);
+		print {$rf} "\nPageCount:\n".swecDumper(\%PageCount);
+		print {$rf} "\nSeeds:\n".swecDumper(\@PageSeeds);
 		close($rf);
 		print "Log written to $logfile\n";
 	}
