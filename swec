@@ -1637,6 +1637,10 @@ you want any page to have.
 You can specify that a check is never to be run in an SDF file (useful for
 overriding a bundled check for instance). The syntax is simply [-NAME].
 
+=head1 HELP/SUPPORT
+
+If you need help or support please visit the website at L<http://random.zerodogg.org/swec>
+
 =head1 BUGS AND LIMITATIONS
 
 =over
@@ -1645,6 +1649,8 @@ overriding a bundled check for instance). The syntax is simply [-NAME].
 and thus does not wish for swec to respect robots.txt.
 
 =back
+
+If you find a bug, please report it at L<http://random.zerodogg.org/swec/bugs>
 
 =head1 INCOMPATIBILITIES
 
