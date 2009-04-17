@@ -897,6 +897,12 @@ sub FetchLink
 	# Fetch the document
 	$c = LWP_Request('get',$URL);
 
+	if ($c->is_error)
+	{
+		AddError($URL,$c->status_line,'CONNECTION_ERROR');
+		return;
+	}
+
 	my $err;
 	# Fetch content into a string
 	my $content = $c->content;

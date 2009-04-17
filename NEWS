@@ -6,6 +6,8 @@ SWEC 0.3
 	than once
 - Cleaned up the user agent
 - The command now returns nonzero when a test fails
+- Fixed a bug causing SWEC to try to run tests on an empty string when there's
+	a connection error
 
 SWEC 0.2.1
 - Minor fixes and enhancements to various tests.
