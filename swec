@@ -597,7 +597,7 @@ sub LWP_Request
         }
         else
         {
-            swecDie(10,"LWP_Request(): unknown type: $type");
+            swecDie(9,"LWP_Request(): unknown type: $type");
         }
         if (not (($r->is_error) && ($r->status_line =~ /(reset by peer|Connection refused|Can't connect)/i)))
         {
@@ -1685,7 +1685,11 @@ to search for the file yourself, or consult your distributions documentation.
 
 =item Returns 1 on a failure during testing.
 
-=item Returns 10 on any general failure.
+=item Returns 2 on SDF parsing error
+
+=item Returns 9 on internal error
+
+=item Returns 10 on any other error
 
 =back
 
