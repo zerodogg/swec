@@ -164,6 +164,13 @@ check = User .+ already has more than \'max_user_connections\' active connection
 error = Maximum database connections exceeded
 sortindex = 50
 
+[SWEC_PHP_SYNTAX]
+type = regexs
+check = Parse error: syntax error.*php
+check = Parse error: syntax error.*on line
+error = PHP syntax error
+sortindex = 90
+
 # URL checks
 [SWEC_NEWLINEURI]
 type = urlrex
