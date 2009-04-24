@@ -609,11 +609,21 @@ sub LWP_Request
 
 sub swecDumper
 {
-	my $href = shift;
+	my $ref = shift;
 	my $l = "\n";
-	foreach my $h (keys %{$href})
+	if (ref($ref) eq 'HASH')
 	{
-		$l .= sprintf('%-30s => %s'."\n",$h,$href->{$h});
+		foreach my $h (keys %{$ref})
+		{
+			$l .= sprintf('%-30s => %s'."\n",$h,$ref->{$h});
+		}
+	}
+	elsif(ref($ref) eq 'ARRAY')
+	{
+		foreach my $line (@{$ref})
+		{
+			$l .= $line;
+		}
 	}
 	return $l;
 }
@@ -632,7 +642,11 @@ sub ErrorReport
 	print "\n---\n\n";
 	$rep .= $baseURI.":\n";
 	$rep .= 'Out of '.scalar(keys(%HasRun)).' pages fetched, '.scalar(keys(%ErrorPages)).' had errors'."\n";
-	$rep .= 'Out of '.scalar(keys(%PageCount)).' base pages checked '.scalar(keys(%ErrorCount)).' had errors'."\n";
+	# Only include 'base page' info if it differs from the above
+	if(scalar(keys(%PageCount)) !=  scalar(keys(%ErrorCount)))
+	{
+		$rep .= 'Out of '.scalar(keys(%PageCount)).' base pages checked '.scalar(keys(%ErrorCount)).' had errors'."\n";
+	}
 	if ($OnlyNewErrors && $session)
 	{
 		SesRemoveOldErrors(\%Errors);
@@ -878,6 +892,7 @@ sub FetchLink
 	my $c = LWP_Request('head',$URL);
 	$HasRun{$URL} = $source->{$URL};
 	my @realError;
+	my $genericError = 'Failed to fetch page. LWP said: "%s" - page was referenced by: %s';
 	if(not $c->is_success)
 	{
 		if(not ref($c) eq 'HTTP::Response')
@@ -886,7 +901,7 @@ sub FetchLink
 		}
 		else
 		{
-			@realError = ($URL,'Failed to fetch page. LWP said: "'.$c->status_line.'" - page was referenced by: '.$source->{$URL},'SWEC_INT_HTTP_'.$c->code);
+			@realError = ($URL,sprintf($genericError,$c->status_line,$source->{$URL}),'SWEC_INT_HTTP_'.$c->code);
 		}
 	}
 	if(not $c->content_type =~ /(text|x?html|xml)/i)
@@ -904,10 +919,9 @@ sub FetchLink
 	# Fetch the document
 	$c = LWP_Request('get',$URL);
 
-	if ($c->is_error)
+	if ($c->is_error and not @realError)
 	{
-		AddError($URL,$c->status_line,'CONNECTION_ERROR');
-		return;
+		@realError = ($URL,sprintf($genericError,$c->status_line,$source->{$URL}),'SWEC_INT_HTTP_'.$c->code);
 	}
 
 	my $err;
@@ -917,6 +931,19 @@ sub FetchLink
 	my $len = length($content);
 	# Prepare it for a lot of regular expressions
 	study($content);
+
+	if(not defined $content or $len == 0)
+	{
+		if (@realError)
+		{
+			AddError(@realError);
+		}
+		else
+		{
+			AddError($URL,'Empty page','SWEC_INT_EMPTYCONTENT');
+		}
+		return;
+	}
 
 	foreach my $en (@DefaultSortedChecks)
 	{
