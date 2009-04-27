@@ -121,7 +121,7 @@ sortindex = 50
 
 [SWEC_DBIXC_ERROR]
 type = regexs
-check = DBIx::Class::ResultSet::(next|find|search)\(\): DBI Exception
+check = DBIx::Class::ResultSet::(next|find|search|count)\(\): DBI Exception
 error = DBIx::Class error
 sortindex = 25
 
