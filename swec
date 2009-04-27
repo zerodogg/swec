@@ -643,7 +643,7 @@ sub ErrorReport
 	$rep .= $baseURI.":\n";
 	$rep .= 'Out of '.scalar(keys(%HasRun)).' pages fetched, '.scalar(keys(%ErrorPages)).' had errors'."\n";
 	# Only include 'base page' info if it differs from the above
-	if(scalar(keys(%PageCount)) !=  scalar(keys(%ErrorCount)))
+	if(scalar(keys(%PageCount)) !=  scalar(keys(%HasRun)))
 	{
 		$rep .= 'Out of '.scalar(keys(%PageCount)).' base pages checked '.scalar(keys(%ErrorCount)).' had errors'."\n";
 	}
