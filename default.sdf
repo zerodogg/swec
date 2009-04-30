@@ -195,3 +195,9 @@ type = urlrex
 check = Catalyst::Engine::
 error = Used perl package names in URL
 sortindex = 11
+
+[SWEC_URI_HTMLENTITY]
+type = urlrex
+check = &(amp|lt|gt)(;|%3B)
+error = HTML entities used in URL, linked to by %PARENT%
+sortindex = 13

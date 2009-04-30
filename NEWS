@@ -9,7 +9,7 @@ SWEC 0.3
 - Fixed a bug causing SWEC to try to run tests on an empty string when there's
 	a connection error
 - Made the final summary a bit cleaner
-- New test: SWEC_PHP_SYNTAX
+- New tests: SWEC_PHP_SYNTAX SWEC_URI_HTMLENTITY
 - Added --nohead - tells SWEC to skip sending HEAD requests and go straight
 	to the GET request
 
