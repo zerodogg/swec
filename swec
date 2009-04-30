@@ -436,6 +436,7 @@ sub debugInfo
 	print "MD5: $digest\n";
 	setupUAString();
 	print 'User agent: '.$BaseUA.$GiveMeUA."\n";
+	print 'Ignore regex: '.$ignoreregex."\n";
 	exit(0);
 }
 
