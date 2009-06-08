@@ -17,8 +17,6 @@
 
 use strict;
 use warnings;
-# Used to extract links
-use HTML::LinkExtractor;
 # Used to fetch data
 use LWP::UserAgent;
 # Used for cookie support
@@ -105,6 +103,10 @@ my %IgnoreChecks;
 # Checks will be present in this hash, even if they are suppose to be ignored
 # (ie. it exists in the %IgnoreChecks hash), but will be skipped at runtime.
 my %Checks;
+# HTML::LinkExtractor object
+my $EX;
+# Information about html extraction method
+my $htmlInfo;
 
 my %MatchMax;
 my %MatchedMax;
@@ -371,8 +373,8 @@ setTermTitle('swec ['.$baseURI.']');
 AutoLoadSDF();
 # Initialize LWP
 InitLWP();
-# We need to extract links from HTML
-my $EX = HTML::LinkExtractor->new();
+# Initialize link extractor
+initExtractor();
 
 # Purge STDOUT at once
 $| = true;
@@ -704,6 +706,68 @@ sub ErrorReport
 	exit($returnVal);
 }
 
+# Purpose: Parse HTML entities, regardless of which parser is available
+# Usage: my $parsed = htmlParseEntities($str);
+sub htmlParseEntities
+{
+	my $str = shift;
+	if ($htmlInfo)
+	{
+		return decode_entities($str);
+	}
+	$str =~ s/&amp;/&/gi;
+	return $str;
+}
+
+# Purpose: Get links from a string, regardless of which link extractor is in use
+# Usage: my $links = getLinksFrom($string);
+# Returns an array of hashrefs in the form { href => link };
+sub getLinksFrom
+{
+	my $data = shift;
+	if ($EX)
+	{
+		return $EX->parse(\$data);
+	}
+	else
+	{
+		my @links;
+		chomp($data);
+		my @all = split(/(<|>)/,$data);
+		foreach my $l (@all)
+		{
+			next if not $l =~ /^a\s/i;
+			if($l =~ s/.*href="([^"]+)".*/$1/i || $l =~ s/.*href='([^']+)'.*/$1/i)
+			{
+				push(@links,{ href => htmlParseEntities($l) });
+			}
+		}
+		return \@links;
+	}
+}
+
+# Purpose: Initialize the link extractor
+# Usage: initExtractor();
+sub initExtractor
+{
+	if(eval('use HTML::LinkExtractor;1;'))
+	{
+		$EX = HTML::LinkExtractor->new();
+	}
+	else
+	{
+		warn("Warning: HTML::LinkExtractor missing, using (somewhat less reliable) alternate method\n");
+		if (eval('use HTML::Entities qw(decode_entities);1'))
+		{
+			$htmlInfo = 1;
+		}
+		else
+		{
+			warn("Warning: HTML::Entities missing, falling back to (less reliable) alternate entitiy parsing\n");
+		}
+	}
+}
+
 # Purpose: Extract links from a page and insert them into %CurrLinks
 # Usage: ExtractLinks(CONTENTS_TO_EXTRACT_FROM, URL_OF_CONTENT);
 sub ExtractLinks
@@ -713,8 +777,8 @@ sub ExtractLinks
 	# Used to ensure we only process unique URLs
 	my %seen;
 
-	$EX->parse(\$contents);
-	foreach my $l (@{$EX->links})
+	my $links = getLinksFrom($contents);
+	foreach my $l (@{$links})
 	{
 		my $href = $l->{href};
 		next if not $href;
