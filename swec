@@ -614,6 +614,8 @@ sub LWP_Request
     return $r;
 }
 
+# Purpose: Dump an arrayref or hashref to STDOUT with a pretty format
+# Usage: print swecDumper(someRef);
 sub swecDumper
 {
 	my $ref = shift;
