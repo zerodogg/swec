@@ -729,7 +729,8 @@ sub getLinksFrom
 	my $data = shift;
 	if ($EX)
 	{
-		return $EX->parse(\$data);
+		$EX->parse(\$data);
+        return $EX->links;
 	}
 	else
 	{
