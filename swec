@@ -753,7 +753,7 @@ sub getLinksFrom
 	else
 	{
 		my @links;
-		chomp($data);
+		$data =~ s/(\n|\r)/ /g;
 		my @all = split(/(<|>)/,$data);
 		foreach my $l (@all)
 		{
