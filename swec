@@ -439,6 +439,24 @@ sub debugInfo
 	setupUAString();
 	print 'User agent: '.$BaseUA.$GiveMeUA."\n";
 	print 'Ignore regex: '.$ignoreregex."\n";
+	print 'HTML::LinkExtractor: ';
+	if(eval('use HTML::LinkExtractor; 1'))
+	{
+		print "available\n";
+	}
+	else
+	{
+		print "not available\n";
+		print "HTML::Entities: ";
+		if(eval('use HTML::Entities;1'))
+		{
+			print "available\n";
+		}
+		else
+		{
+			print "not available\n";
+		}
+	}
 	exit(0);
 }
 
