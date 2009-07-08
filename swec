@@ -553,7 +553,7 @@ sub LWP_CommandlineEmu
 	foreach my $url (@ARGV)
 	{
 		next if $url =~ /^\-\-\w+$/;
-		$url = ($url =~ /^http/) ? $url : 'http://'.$url;
+		$url = ($url =~ m{^\w\w+://}) ? $url : 'http://'.$url;
 		print "\n--\n$url:\n--\n";
 		my $r = LWP_Request($type,$url);
 		print $r->headers_as_string;
@@ -601,6 +601,7 @@ sub LWP_Request
 {
     my($type,$URL) = @_;
     my $r;
+	my $success = 0;
     for(my $l = 0; $l < 3; $l++)
     {
         if ($l != 0)
@@ -626,10 +627,18 @@ sub LWP_Request
         }
         if (not (($r->is_error) && ($r->status_line =~ /(reset by peer|Connection refused|Can't connect)/i)))
         {
+			$success = 1;
             last;
         }
     }
-    return $r;
+	if ($success)
+	{
+		return $r;
+	}
+	else
+	{
+		return;
+	}
 }
 
 # Purpose: Dump an arrayref or hashref to STDOUT with a pretty format
@@ -987,7 +996,12 @@ sub FetchLink
 	if(not $skipHEAD)
 	{
 		$c = LWP_Request('head',$URL);
-		if(not $c->is_success)
+		if(not defined $c)
+		{
+				AddError($URL,'Failed to connect to server','SWEC_INT_CONNECTIONERROR');
+				return;
+		}
+		elsif(not $c->is_success)
 		{
 			if(not ref($c) eq 'HTTP::Response')
 			{

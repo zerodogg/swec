@@ -13,6 +13,7 @@ SWEC 0.3
 - Added --nohead - tells SWEC to skip sending HEAD requests and go straight
 	to the GET request
 - No longer requires HTML::LinkExtractor (but will use it if it's available)
+- Will now emit a SWEC_INT_CONNECTIONERROR error when connections fail
 
 SWEC 0.2.1
 - Minor fixes and enhancements to various tests.
