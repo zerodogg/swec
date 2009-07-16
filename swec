@@ -1568,13 +1568,15 @@ Print a quick help screen with the most common options
 
 Print a help screen with all options
 
-=item B<--verion>
+=item B<--version>
 
 Print version information and exit
 
 =item B<--ie, --opera>
 
-Pretend (somewhat) to be IE or Opera
+Pretend (somewhat) to be IE or Opera. The default is to pretend (somewhat) to
+be Firefox. To see the entire user-agent string, run swec with the --debuginfo
+parameter at the end (ie. after any user-agent altering parameters).
 
 =item B<--ua> USERAGENT
 
@@ -1701,6 +1703,12 @@ the added benifit of cookies, which means that you can supply a login URL first
 to examine how a request would be responded to after login. This is particulary
 useful to examine JSON or XML replies, or to check if the headers being replied
 are set properly.
+
+=item B<--debuginfo>
+
+Outputs various information that is useful in bug reports. This also
+lists the regular expression of files SWEC ignores, as well as the
+user-agent string.
 
 =back
 
