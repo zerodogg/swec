@@ -25,7 +25,7 @@
 type = regexs
 check = 404(:)? file not found
 check = file not found
-error = This file/resource appears not to exist
+error = This file/resource appears not to exist (linked to by %PARENT%)
 sortindex = 999
 
 # This is the closest we can get to detecting random unhandled internal
