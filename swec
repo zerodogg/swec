@@ -786,7 +786,7 @@ sub initExtractor
 	}
 	else
 	{
-		warn("Warning: HTML::LinkExtractor missing, using (somewhat less reliable) alternate method\n");
+		warn("Warning: HTML::LinkExtractor missing, using (slightly less reliable) alternate method\n");
 		if (eval('use HTML::Entities qw(decode_entities);1'))
 		{
 			$htmlInfo = 1;
