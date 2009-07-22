@@ -1794,6 +1794,13 @@ you want any page to have.
 You can specify that a check is never to be run in an SDF file (useful for
 overriding a bundled check for instance). The syntax is simply [-NAME].
 
+=head2 SUBMITTING TESTS UPSTREAM
+
+If you write an SWEC test that you think would be useful for other people as well,
+please submit a bug report with the test at L<http://random.zerodogg.org/swec/bugs>
+and we will look into getting it into the next SWEC release. The only catch is
+that you will need to make the test available under the GNU GPLv3 (or later).
+
 =head1 HELP/SUPPORT
 
 If you need help or support please visit the website at L<http://random.zerodogg.org/swec>
@@ -1819,7 +1826,8 @@ Previous versions returns 0 even if some tests failed.
 
 =item I<~/.swecrc>
 
-The SWEC rc file. Uses the SDF format.
+The SWEC rc file. This is an SDF-file that you can use to add local tests,
+or for disabling some bundled tests that you don't find useful.
 
 =item I<default.sdf>
 
