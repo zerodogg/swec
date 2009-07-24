@@ -144,6 +144,13 @@ check = (ARRAY|HASH|SCALAR|GLOB)\(0x
 error = Appears to have printed perl references
 sortindex = 30
 
+# Cake
+[SWEC_CAKE_GENERICERROR]
+type = regexs
+check = cake-stack-trace
+error = Unknown PHP-Cake error
+sortindex = 100
+
 # PHP
 [SWEC_PHP_INCLUDE]
 type = regexs
@@ -169,6 +176,12 @@ type = regexs
 check = Parse error: syntax error.*php
 check = Parse error: syntax error.*on line
 error = PHP syntax error
+sortindex = 90
+
+[SWEC_PHP_FAILEDFUNCTION]
+type = regexs
+check = Warning(<[^>]+>)*: \S+\(\) \[(<[^>]+>)*function\.\S+(<[^>]+>)*\]:
+error = A call to a PHP function failed and was not handled
 sortindex = 90
 
 # URL checks
