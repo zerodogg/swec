@@ -436,28 +436,32 @@ sub debugInfo
 	$md5->addfile($f);
 	my $digest = $md5->hexdigest;
 	close($f);
-	print "MD5: $digest\n";
+	my $fmt = '%-20s: %s'."\n";
+	printf($fmt,'MD5',$digest);
 	setupUAString();
-	print 'User agent: '.$BaseUA.$GiveMeUA."\n";
-	print 'Ignore regex: '.$ignoreregex."\n";
-	print 'HTML::LinkExtractor: ';
+	printf($fmt,'User agent',$BaseUA.$GiveMeUA);
+	printf($fmt,'Ignore regex',$ignoreregex);
+	my $parser;
 	if(eval('use HTML::LinkExtractor; 1'))
 	{
-		print "available\n";
+		$parser = 'HTML::LinkExtractor';
+		printf($fmt,'HTML::LinkExtractor','available');
 	}
 	else
 	{
-		print "not available\n";
-		print "HTML::Entities: ";
+		printf($fmt,'HTML::LinkExtractor','not available');
 		if(eval('use HTML::Entities;1'))
 		{
-			print "available\n";
+			$parser = 'builtin with HTML::Entities';
+			printf($fmt,'HTML::Entities','available');
 		}
 		else
 		{
-			print "not available\n";
+			$parser = 'builtin without HTML::Entities';
+			printf($fmt,'HTML::Entities','not available');
 		}
 	}
+	printf($fmt,'Parser',$parser);
 	exit(0);
 }
 
@@ -788,7 +792,6 @@ sub initExtractor
 	}
 	else
 	{
-		warn("Warning: HTML::LinkExtractor missing, using (slightly less reliable) alternate method\n");
 		if (eval('use HTML::Entities qw(decode_entities);1'))
 		{
 			$htmlInfo = 1;
