@@ -121,7 +121,7 @@ my @URLSortedChecks;
 my @LoadedSDF;
 
 # Declare some additional global vars
-my($UA);
+my($UA, $keepGoing);
 
 # Display the help screen if no args were supplied.
 help() if not @ARGV;
@@ -263,6 +263,7 @@ GetOptions
 		my $t = shift;
 		$IgnoreChecks{$t} = true;
 	},
+	'keepgoing' => \$keepGoing,
 	'nohead' => \$skipHEAD,
 	'lwphead' => \&LWP_CommandlineEmu,
 	'lwpget' => \&LWP_CommandlineEmu,
@@ -490,6 +491,7 @@ sub help
 	PrintHelp('-x','--exclude','Exclude the test ID supplied');
 	PrintHelp('','--nohead','SWEC sends a HEAD request before each GET request to detect binary files. This makes SWEC skip the HEAD request and rely on file name filtering to detect binary files.');
 	PrintHelp('','--lwpget, --lwphead','SWEC equivalents of the lwp-request GET and HEAD commands. See the manpage for more information');
+	PrintHelp('','--keepgoing','Parse a page for links even if it contained errors');
 	if ($all)
 	{
 		PrintHelp('-p','--softpagelimit','Change the soft page limit, the max amount of pages of any link type to request, this may be exceeded but swec will try not to (default: 20).');
@@ -1103,6 +1105,10 @@ sub FetchLink
 			ExtractLinks($content,$URL);
 		}
 	}
+	if($keepGoing and ($err or @realError))
+	{
+		ExtractLinks($content,$URL);
+	}
 }
 
 # Purpose: Load a session from $session_file
@@ -1687,6 +1693,12 @@ save some time during a test run.
 
 It is always safe to use this, the worst case scenario is that SWEC downloads
 some binary files and wastes some bandwidth.
+
+=item B<--keepgoing>
+
+By default SWEC will stop processing a page if it hits an error. If you supply
+this parameter, SWEC will parse a document for links even if it contained an
+error (as long as that error was not an SWEC_INT_* error).
 
 =item B<--validate>
 
