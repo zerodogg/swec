@@ -1411,7 +1411,7 @@ sub LoadSDF
 			}
 			else
 			{
-				if ($name eq 'check' && $currtype =~ /^(urlrex|regex(s))?$/)
+				if ($name eq 'check' && $currtype =~ /^(urlrex|regex(s)?)?$/)
 				{
 					if(not defined $Data->{$currnam}{'check'})
 					{
