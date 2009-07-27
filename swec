@@ -1620,14 +1620,18 @@ this can not be overridden without editing the source.
 
 =item B<-b, --baseurl>
 
-The base URL. Will only check URLs matching
-it and will use it as the domain/url for pages that have relative paths.
+The base URL. Will only check URLs matching it and will use it as the
+domain/url for pages that have relative paths. Optionally you may omit
+--baseurl and simply supply the URL on the command-line without
+the parameter (ie. I<swec example.org> and I<swec --baseurl example.org> are
+essentially the same).
 
 =item B<-s, --urlseed>
 
 The URL seed, the first URL to check. Can be supplied multiple times,
-the URLs are checked in the order supplied on the commandline.
-Supply -b before -s in order to be able to supply relative paths.
+the URLs are checked in the order supplied on the commandline. These
+can be absolute paths, with the domain name, or relative paths (ie. like
+/index.html).
 
 =item B<-p, --softpagelimit>
 
@@ -1751,6 +1755,21 @@ lists the regular expression of files SWEC ignores, as well as the
 user-agent string.
 
 =back
+
+=head1 THE SUMMARY
+
+When SWEC has finished a run, you will get an error report. There it will
+list the number of pages checked, the number of pages that had errors
+and which pages had what errors.
+
+If your website uses GET parameters (ie /path/?somekey=somevalue), then
+SWEC will output two lines of page information. The first one is the standard
+line that shows the total number of pages fetched, and the total number of pages
+that had errors. The second line refers to 'base pages'. A base page is any
+page with its ?key=value parameters removed. So for instance for the request
+/index.php?file=something, /index.php is the base page. This information is
+provided so that you can easily see if the issue is simply with a few specific
+files/controllers.
 
 =head1 SDF FILE FORMAT
 
