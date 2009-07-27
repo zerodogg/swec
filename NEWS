@@ -1,3 +1,8 @@
+SWEC 0.3.1
+- Smarter seed/baseurl parsing. SWEC now lets you specify seeds before the
+	baseurl (allowing things like "swec example.org -s /some.html").
+- No longer outputs needless assumption messages
+
 SWEC 0.3
 - Fixed a bug causing --help to display the --help-all list instead of the
 	smaller --help list

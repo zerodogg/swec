@@ -43,7 +43,7 @@ $SIG{INT} = \&ErrorReport;
 $SIG{TERM} = \&ErrorReport;
 
 # The version number
-my $VERSION = '0.3';
+my $VERSION = '0.3.1';
 # The base URI
 my $baseURI;
 # The same in regex
@@ -150,19 +150,6 @@ GetOptions
 	's|urlseed=s' => sub {
 		shift;
 		my $u = shift;
-		if(not $u =~ /^http/)
-		{
-			if ($baseURI)
-			{
-				$u = $baseURI.'/'.$u;
-				$u =~ s#/+#/#g;
-				$u =~ s#^(https?):/#$1://#g;
-			}
-			else
-			{
-				swecDie(10,"--urlseed does not contain http:// and no --baseurl was found. Try specifying --baseurl before --urlseed.\n");
-			}
-		}
 		push(@PageSeeds,$u);
 	},
 	'm|matchmax=s' => sub {
@@ -273,17 +260,94 @@ GetOptions
 	'version' => sub { print "SWEC version $VERSION\n"; exit 0; },
 ) or exit(10);
 
-# Initialize session
-if(defined $session_file and not -e $session_file)
+main();
+
+# Purpose: Main program
+# Usage: main();
+sub main
 {
-	print "$session_file: does not exist. Assuming new session.\n";
-	$session = {};
+	# Initialize session
+	if(defined $session_file and not -e $session_file)
+	{
+		print "$session_file: does not exist. Assuming new session.\n";
+		$session = {};
+	}
+	else
+	{
+		loadSession();
+	}
+	# Prepare the baseURI
+	prepareBaseURI();
+	setTermTitle('swec ['.$baseURI.']');
+	# Prepare URL seeds
+	prepareSeeds();
+	# Load the SDF data
+	AutoLoadSDF();
+	# Initialize LWP
+	InitLWP();
+	# Initialize link extractor
+	initExtractor();
+
+	# Purge STDOUT at once
+	$| = true;
+
+	# We've begun processing, so now errors should be shown
+	$hasRunErrorRep = false;
+
+	# First fetch the seeds
+	FetchLinks(\@PageSeeds);
+
+	# Load data from the session if we have one
+	if ($session)
+	{
+		my %ErrorLinks;
+		# Import errors from session into ErrorLinks and run through those pages.
+		# (links found inside those pages will be appended to CurrLinks).
+		SessionImportLinks(\%ErrorLinks,true);
+		if(keys %ErrorLinks)
+		{
+			FetchLinks(\%ErrorLinks);
+		}
+		# Now import all other links saved in the session into CurrLinks
+		SessionImportLinks(\%CurrLinks,false);
+	}
+	# Finally, loop until there are no links left
+	while(keys %CurrLinks)
+	{
+		FetchLinks(\%CurrLinks);
+	}
+	# And output the error report
+	ErrorReport();
 }
-else
+
+# Purpose: Initialize our seeds
+# Usage: prepareSeeds();
+sub prepareSeeds
 {
-	loadSession();
+	my @newSeeds;
+	foreach my $u (@PageSeeds)
+	{
+		if(not $u =~ /^http/)
+		{
+			if ($baseURI)
+			{
+				$u = $baseURI.'/'.$u;
+				$u =~ s#/+#/#g;
+				$u =~ s#^(https?):/#$1://#g;
+			}
+			else
+			{
+				swecDie(10,"--urlseed '$u' does not contain http:// and no --baseurl was found..\n");
+			}
+		}
+		push(@newSeeds,$u);
+	}
+	@PageSeeds = @newSeeds;
 }
-# Code block initializing $baseURI
+
+# Purpose: Initialize the base URI
+# Usage: prepareBaseURI();
+sub prepareBaseURI
 {
 	# If we make an assumption about something, this should be set to true
 	# and we will output a message about it at the end of this block.
@@ -328,10 +392,6 @@ else
 	{
 		$baseURIRegex = '(http://)?'.'(www\.)?'.$baseURI;
 		$baseURI = 'http://'.$baseURI;
-		if ($useURLSeed)
-		{
-			$useURLSeed = 'http://'.$useURLSeed;
-		}
 		$madeAssumption = true;
 	}
 	if(not $baseURIRegex)
@@ -339,10 +399,6 @@ else
 		$baseURIRegex = $baseURI;
 	}
 	# Output a message that says we assumed something
-	if ($madeAssumption)
-	{
-		print "Assuming --baseurl $baseURI\n";
-	}
 	# Ensure we have at least one page seed and load from the session if needed
 	if(not @PageSeeds)
 	{
@@ -352,15 +408,22 @@ else
 		}
 		else
 		{
+			if ($madeAssumption)
+			{
+				print "Assuming --baseurl $baseURI\n";
+			}
 			if ($useURLSeed)
 			{
+				$useURLSeed =~ s{^\w+://(www\.)?\w+\.[^/]+?}{};
+				$useURLSeed =~ s{/+}{/};
+				$useURLSeed = '/'.$useURLSeed;
 				print "Assuming --urlseed $useURLSeed\n";
 				push(@PageSeeds,$useURLSeed);
 			}
 			else
 			{
 				print "Assuming --urlseed /\n";
-				push(@PageSeeds,$baseURI.'/');
+				push(@PageSeeds,'/');
 			}
 		}
 	}
@@ -369,44 +432,6 @@ else
 		%MatchMax = %{$session->{MatchMax}};
 	}
 }
-setTermTitle('swec ['.$baseURI.']');
-# Load the SDF data
-AutoLoadSDF();
-# Initialize LWP
-InitLWP();
-# Initialize link extractor
-initExtractor();
-
-# Purge STDOUT at once
-$| = true;
-
-# We've begun processing, so now errors should be shown
-$hasRunErrorRep = false;
-
-# First fetch the seeds
-FetchLinks(\@PageSeeds);
-
-# Load data from the session if we have one
-if ($session)
-{
-	my %ErrorLinks;
-	# Import errors from session into ErrorLinks and run through those pages.
-	# (links found inside those pages will be appended to CurrLinks).
-	SessionImportLinks(\%ErrorLinks,true);
-	if(keys %ErrorLinks)
-	{
-		FetchLinks(\%ErrorLinks);
-	}
-	# Now import all other links saved in the session into CurrLinks
-	SessionImportLinks(\%CurrLinks,false);
-}
-# Finally, loop until there are no links left
-while(keys %CurrLinks)
-{
-	FetchLinks(\%CurrLinks);
-}
-# And output the error report
-ErrorReport();
 
 # Purpose: Set the title of the xterm/screen
 # Usage: setTermTitle(TITLE);
@@ -472,7 +497,7 @@ sub help
 	my $all = shift;
 	print "swec - Simple Web Error Checker version $VERSION\n\n";
 	print "USAGE: swec [OPTIONS]\n";
-	print " OR  : swec [HOST]\n\n";
+	print " OR  : swec ([OPTIONS]) [HOST]\n\n";
 	if ($all)
 	{
 		PrintHelp('','--help','Print the normal help screen');
@@ -1120,7 +1145,7 @@ sub FetchLink
 sub loadSession
 {
 	return if not $session_file;
-	$session = retrieve($session_file) or die;
+	$session = retrieve($session_file) or swecDie('Failed to retrieve session: '.$!);
 	if(defined $baseURI && not $session->{baseuri} eq $baseURI)
 	{
 		swecDie(10,"Session appears to not be for $baseURI\n");
@@ -1139,7 +1164,7 @@ sub writeSession
 	return if not $session;
 	$session->{sesver} = 1;
 	unlink($session_file) if -e $session_file;
-	store($session,$session_file) or die;
+	store($session,$session_file) or swecDie('Failed to store session: '.$!);
 }
 
 # Purpose: Remove old errors that has been reported in earlier sessions from the list of errors
@@ -1300,7 +1325,7 @@ sub swecDie
 		$returnval = shift;
 	}
 	$error = shift;
-	if ($returnval)
+	if (not defined $returnval)
 	{
 		die($error);
 	}
