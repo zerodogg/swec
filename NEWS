@@ -1,9 +1,11 @@
 SWEC 0.3.1
+----------
 - Smarter seed/baseurl parsing. SWEC now lets you specify seeds before the
 	baseurl (allowing things like "swec example.org -s /some.html").
 - No longer outputs needless assumption messages
 
 SWEC 0.3
+--------
 - Fixed a bug causing --help to display the --help-all list instead of the
 	smaller --help list
 - Fixed a bug that could cause external links to be counted towards --matchmax
@@ -25,6 +27,7 @@ SWEC 0.3
 	it contained an error
 
 SWEC 0.2.1
+----------
 - Minor fixes and enhancements to various tests.
 - Ensured that Mason tests are run after other relevant tests so that
     errors from toolkits using mason for templating are properly
@@ -40,6 +43,7 @@ SWEC 0.2.1
 	HEAD and GET commands, with cookie support
 
 SWEC 0.2
+--------
 - Now has one error code for each HTTP error (ie. SWEC_INT_HTTP_404)
 	instead of the generic SWEC_INT_FETCHFAILED. This lets you filter out
 	things like HTTP 404 errors, which might not be actual errors, but
@@ -67,6 +71,7 @@ SWEC 0.2
 - Now performs a http HEAD request before performing the GET request.
 
 SWEC 0.1.1
+----------
 - Minor fixes to the documnetation
 - Dropped the SWEC_STANDARD_ERROR test
 - Now processes error pages if present, only falling back to LWP errors
@@ -75,4 +80,5 @@ SWEC 0.1.1
 - Minor speedups
 
 SWEC 0.1
+--------
 - First public release
