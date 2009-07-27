@@ -1,14 +1,12 @@
 This is SWEC - Simple Web Error Checker.
 
-SWEC is a program that automates testing of dynamic websites.  It parses each
-HTML file it finds for links, and if those links are within the site specified
-(ie. local, not external), it will check that page as well. In this respect it
-works a lot like a crawler, in that it'll click on any link it finds (more
-notes about this later).
-
-In addition to parsing and locating links, it will also parse the pages looking
-for known errors and report those (such as Mason or PHP errors), and will
-report if a page can not be read (by either returning a 404, 500 or similar).
+SWEC is a program that automates testing of dynamic websites.  You provide it
+with a base URL, it then parses each HTML file it finds on that site for links,
+and if those are within the site specified (ie. local links, not external), it
+will check those as well (in this respect it is a lot like a crawler, more on
+that later). It will then parse the pages looking for known errors and report
+those (such as Mason or PHP errors), and will report if a page can not be read
+(by either returning a 404, 500 or similar).
 
 Since you may often want SWEC to be logged in on your site, you have to be
 careful. When logged in, SWEC will still click on all links it finds, including
