@@ -1756,7 +1756,7 @@ user-agent string.
 
 =back
 
-=head1 THE SUMMARY
+=head1 THE ERROR REPORT
 
 When SWEC has finished a run, you will get an error report. There it will
 list the number of pages checked, the number of pages that had errors
@@ -1774,7 +1774,7 @@ files/controllers.
 =head1 SDF FILE FORMAT
 
 The file format used by SWEC is SDF (SWEC definition file). Its syntax is similar
-to INI-files, with some differences.
+to INI-files, with a few minor differences.
 
 It consists of definitions of various checks, each check definition starts with a
 [NAME] header, where NAME is the name of the test. The next line is required to be
@@ -1853,6 +1853,67 @@ you want any page to have.
 You can specify that a check is never to be run in an SDF file (useful for
 overriding a bundled check for instance). The syntax is simply [-NAME].
 
+=head2 EXAMPLES
+
+Here are a few exmples of SWEC tests, along with an explanation of them.
+See the bundled I<default.sdf> file for more checks.
+
+=over
+
+=item I<SWEC_404>
+
+This will look for the string 404: file not found, case insensitive, with an
+optional ":" and using the 'regexs' test (so it will ignore all html tags,
+and allow &nbsp; instead of a real space). The error will also output
+which URL referred to it, in case the page actually isn't valid.
+
+	[SWEC_404]
+	type = regexs
+	check = 404(:)? file not found
+	check = file not found
+	error = This file/resource appears not to exist (linked to by %PARENT%)
+	sortindex = 999
+
+
+=item I<SWEC_CATALYST_ERROR>
+
+This will look for either of two known Catalyst namespaces that
+appear in catalyst errors. This is a generic 'catch-all' for catalyst
+errors, when more specific checks does not match.
+
+	[SWEC_CATALYST_ERROR]
+	type = regexs
+	check = Catalyst::Request
+	check = Catalyst::Response
+	error = Catalyst error
+	sortindex = 35
+
+=item I<SWEC_PERL_CARP>
+
+This looks for a file path that looks like it might be referring
+somehow to the perl carp functions. If it is found, then some sort
+of perl error has occurred.
+
+	[SWEC_PERL_CARP]
+	type = regexs
+	check = /usr/(\w+/)+perl\d*?(/[^/]+)?/Carp/Clan.pm
+	check = /usr/(\w+/)+perl\d*?(/[^/]+)?/(CGI/)?Carp.pm
+	error = Unknown perl error (Carp)
+	sortindex = 999
+
+=item I<SWEC_URI_SCALAROBJ>
+
+This applies a regular expression to URLs, checking if the
+URL appears to have a printed perl reference in it.
+
+	[SWEC_URI_SCALAROBJ]
+	type = urlrex
+	check = (ARRAY|HASH|SCALAR|GLOB)\(0x
+	error = Strange URL, appears to have tried to use perl objects as scalars. Was referenced by %PARENT%.
+	sortindex = 9
+
+=back
+
 =head2 SUBMITTING TESTS UPSTREAM
 
 If you write an SWEC test that you think would be useful for other people as well,
@@ -1868,7 +1929,9 @@ If you need help or support please visit the website at L<http://random.zerodogg
 
 =over
 
-=item I<-> Does not respect robots.txt, swec assumes that the owner of the site is running it,
+=item - Does not respect robots.txt.
+
+SWEC assumes that the owner of the site is running it,
 and thus does not wish for swec to respect robots.txt.
 
 =back

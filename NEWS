@@ -3,6 +3,7 @@ SWEC 0.3.1
 - Smarter seed/baseurl parsing. SWEC now lets you specify seeds before the
 	baseurl (allowing things like "swec example.org -s /some.html").
 - No longer outputs needless assumption messages
+- Documentation improvements
 
 SWEC 0.3
 --------
