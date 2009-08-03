@@ -851,7 +851,7 @@ sub ExtractLinks
 		next if $href =~ /^(mailto|javascript|ftp|irc|feed):/i;
 		next if $href eq '#';
 		next if $href =~ /$ignoreregex$/;
-		$href =~ s/\#\w*$//;
+		$href =~ s/\#.*$//;
 		if(not $wasPageSeed{$href})
 		{
 			$href = GetRealUrl($href,$url);
