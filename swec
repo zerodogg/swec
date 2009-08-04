@@ -196,7 +196,7 @@ GetOptions
 	'parsedump=s' => sub {
 		shift;
 		my $file = shift;
-		LoadSDF($file,\%Checks);
+		LoadSDFv2($file,\%Checks);
 		$Data::Dumper::Sortkeys = true;
 		$Data::Dumper::Varname = 'SDF_PARSE_DUMP';
 		$Data::Dumper::Terse = true;
@@ -209,7 +209,7 @@ GetOptions
 		my $file = shift;
 		local $| = true;
 		print "$file ";
-		LoadSDF($file,\%Checks);
+		LoadSDFv2($file,\%Checks);
 		foreach my $en (sort keys %Checks)
 		{
 			# Get a ref to the hash
@@ -878,9 +878,9 @@ sub ExtractLinks
 		{
 			# Get a ref to the hash
 			my $ec = $Checks{$en};
-			foreach my $regex (@{$ec->{check}})
+			foreach my $regex (@{$ec->{regexes}})
 			{
-				if ($href =~ /$regex/i)
+				if ($href =~ $regex)
 				{
 					$err = $ec->{error};
 					last;
@@ -1095,7 +1095,7 @@ sub FetchLink
 		# Get a ref to the hash
 		my $ec = $Checks{$en};
 		# Regex check
-		if ($ec->{type} =~ /^regex(s)?$/)
+		if ($ec->{type} =~ m{^regex/\w+$})
 		{
 			foreach my $regex (@{$ec->{check}})
 			{
@@ -1109,9 +1109,13 @@ sub FetchLink
 		# Minlength check
 		elsif ($ec->{type} eq 'minlength')
 		{
-			if(length($content) < $ec->{check})
+			my $len = length($content);
+			foreach my $length (@{$ec->{check}})
 			{
-				$err = $ec->{error};
+				if($len < $length)
+				{
+					$err = $ec->{error};
+				}
 			}
 		}
 		else
@@ -1321,6 +1325,17 @@ sub perr
 	swecDie(2,"SDF parser error: $error $near line $lineno in $file\n");
 }
 
+# Purpose: Warn with a usable message about possible SDF problems
+# Usage: pwarn(SAME_AS_perr);
+sub pwarn
+{
+	my $warning = shift;
+	my $lineno = shift;
+	my $file = shift;
+	my $near = shift(@_) ? 'near' : 'at';
+	warn("SDF parser warning: $warning $near line $lineno in $file\n");
+}
+
 # Purpose: Die with a preset return value
 # Usage: swecDie(value,error);
 sub swecDie
@@ -1342,23 +1357,78 @@ sub swecDie
 	}
 }
 
-# Purpose: Validate data for a definition in an SDF
-# Usage: SDFParamValidate(\%Data,$name$file,$lineno);
-sub SDFParamValidate
+# Purpose: Verify and prepare a test
+# Usage: SDFFinalizeTest(\%Data,$name,$file,$lineno);
+sub SDFFinalizeTest
 {
 	my $Data = shift;
 	my $name = shift;
 	my $file = shift;
 	my $lineno = shift;
+	$lineno -= 2;
 	# Needs at least one of each of these
 	foreach my $v(qw(type check error sortindex))
 	{
 		if(not defined $Data->{$name}{$v} or not length $Data->{$name}{$v})
 		{
-			my $l = $lineno-2;
-			perr('Required setting "'.$v.'" missing for '.$name,$l,$file,1);
+			perr('Required setting "'.$v.'" missing for '.$name,$lineno,$file,1);
 		}
 	}
+	# Compile regexes if needed
+	if ($Data->{$name}->{type} =~ /regex/)
+	{
+		$Data->{$name}->{regexes} = GetSDFRegexObject($Data,$name,$file,$lineno);
+	}
+
+}
+
+# Purpose: Get a list of regex objects for a check
+# Usage: GetSDFRegexObject(\%Data,$name,$file,$lineno);
+# Returns: Arrayref of regex objects
+sub GetSDFRegexObject
+{
+	my $Data = shift;
+	my $name = shift;
+	my $file = shift;
+	my $lineno = shift;
+	my $checksHash = $Data->{$name};
+	my @finalRegexes;
+	my $modifiers = '';
+	my $regexModifiers = '';
+	if ($checksHash->{'type'} =~ m{/})
+	{
+		$modifiers = $checksHash->{'type'};
+		$modifiers =~ s{^.*/+}{};
+
+		foreach my $str (split(//,$modifiers))
+		{
+			next if $str eq 's';
+			if ($str =~ /^(i)$/)
+			{
+				$regexModifiers .= $str;
+			}
+			else
+			{
+				pwarn('Unknown modifier "'.$str.'"',$name,$lineno,$file,true);
+			}
+		}
+	}
+
+	foreach my $check (@{$checksHash->{check}})
+	{
+		if ($modifiers =~ /s/)
+		{
+			$check =~ s/\s+/ /g;
+			$check =~ s/ /(\\s+|&nbsp;|<[^>]+>)+/g;
+		}
+		my $regex =  eval('qr/$check/'.$regexModifiers);
+		if ($@)
+		{
+			perr('Failed to compile regular expression: '.$@,$name,$lineno,$file,true);
+		}
+		push(@finalRegexes,$regex);
+	}
+	return \@finalRegexes;
 }
 
 # Purpose: Load an SDF file
@@ -1407,7 +1477,7 @@ sub LoadSDF
 			}
 			if ($prevnam)
 			{
-				SDFParamValidate($Data,$prevnam,$file,$lineno);
+				SDFFinalizeTest($Data,$prevnam,$file,$lineno);
 			}
 		}
 		else
@@ -1440,46 +1510,200 @@ sub LoadSDF
 			{
 				if (not $content =~ /^(urlrex|regex(s)?|minlength)\s*$/)
 				{
-					perr('Unknown type specified, must be one of regex, minlength, urlrex',$lineno,$file);
+					perr('Unknown type specified, must be one of regex, minlength, urlrex (maybe you meant to use SDFv2?)',$lineno,$file);
 				}
-				$Data->{$currnam}{'type'} = $content;
+				if ($content eq 'urlrex')
+				{
+					$Data->{$currnam}{'source'} = 'url';
+					$Data->{$currnam}{'type'} = 'regex';
+				}
+				elsif($content =~ /regex/)
+				{
+					$Data->{$currnam}{'source'} = 'body';
+					if ($content =~ /regexs/)
+					{
+						$Data->{$currnam}{'type'} = 'regex/s';
+					}
+					else
+					{
+						$Data->{$currnam}{'type'} = 'regex';
+					}
+				}
+				elsif($content eq 'minlength')
+				{
+					$Data->{$currnam}{'source'} = 'body';
+					$Data->{$currnam}{'type'} = 'minlength';
+				}
 				$currtype = $content;
 			}
 			elsif (not $currtype)
 			{
-				perr('Data definitions located before type definition. type must be the first setting set for any definition because it changes how the rest is parsed',$lineno,$file);
+				perr('Data definitions located before type definition. type must be the first setting set for any definition because it changes how the rest is parsed (maybe you have mixed SDFv1 and SDFv2?)',$lineno,$file);
 			}
 			else
 			{
-				if ($name eq 'check' && $currtype =~ /^(urlrex|regex(s)?)?$/)
+				if(not defined $Data->{$currnam}{'check'})
 				{
-					if(not defined $Data->{$currnam}{'check'})
-					{
-						$Data->{$currnam}{'check'} = [];
-					}
-					if ($currtype eq 'regexs')
-					{
-						# "smart" regex
-						$content =~ s/\s+/ /g;
-						$content =~ s/ /(\\s+|&nbsp;|<[^>]+>)+/g;
-					}
-					push(@{$Data->{$currnam}{'check'}},$content);
+					$Data->{$currnam}{'check'} = [];
 				}
-				else
-				{
-					if(defined $Data->{$currnam}{$name})
-					{
-						perr('Duplicate definition of '.$name,$lineno,$file);
-					}
-					$Data->{$currnam}{$name} = $content;
-				}
+				push(@{$Data->{$currnam}{'check'}},$content);
 			}
 		}
 	}
 	close($f);
 	if ($currnam)
 	{
-		SDFParamValidate($Data,$currnam,$file,$lineno);
+		SDFFinalizeTest($Data,$currnam,$file,$lineno);
+	}
+	push(@LoadedSDF,$file);
+	return true;
+}
+
+# Purpose: Load an SDFv2 file
+# Usage: LoadSDFv2(FILE,\%Conf);
+sub LoadSDFv2
+{
+	my $file = shift;
+	my $Data = shift;
+	printd("Loading SDF: $file");
+	if(not $Data)
+	{
+		$Data = {};
+	}
+	open (my $f, '<',$file) or swecDie(10,"Failed to open $file for reading: $!\n");
+	my $currnam;
+	my (
+		$currtype,
+		$currsource
+	);
+	my $lineno = 0;
+	while ($_ = <$f>)
+	{
+		$lineno++;
+		next if /^#/;
+		next if not /\S/;
+		chomp;
+
+		if (/^\[/)
+		{
+			my $prevnam = $currnam;
+			$currtype = undef;
+			$currsource = undef;
+			# This is a negative statement, add it to the ignore list.
+			if (/^\[\-/)
+			{
+				($currnam = $_) =~ s/(\[|\]|\-)*//g;
+				$IgnoreChecks{$currnam} = true;
+				printd("Added $currnam to the ignore list");
+				# We don't currently have a valid section.
+				$currnam = undef;
+			}
+			else
+			{
+				($currnam = $_) =~ s/(\[|\])*//g;
+				if ($Data->{$currnam})
+				{
+					perr('Duplicate definition of '.$currnam,$lineno,$file);
+				}
+				$Data->{$currnam} = {};
+			}
+			if ($prevnam)
+			{
+				SDFFinalizeTest($Data,$prevnam,$file,$lineno);
+			}
+		}
+		else
+		{
+			if(not $currnam)
+			{
+				perr('Data found before section name definition',$lineno,$file);
+			}
+			elsif(not /\=/)
+			{
+				perr('Unable to parse line, unknown data',$lineno,$file);
+			}
+			my $name = $_;
+			my $content = $_;
+			$name =~ s/^(\w+)\W.*$/$1/;
+			$content =~ s/^[^=]+=\s?//;
+			if(not $content =~ /\S/)
+			{
+				perr('Failed to parse setting content',$lineno,$file);
+			}
+			elsif(not $name =~ /\S/)
+			{
+				perr('Failed to parse setting name',$lineno,$file);
+			}
+			elsif($name eq $_ or $content eq $_)
+			{
+				perr('General line parsing error',$lineno,$file);
+			}
+			elsif($name eq 'source')
+			{
+				if(not $content =~ /^(body|url)$/i)
+				{
+					perr('Unknown source specified, must be one of body or url',$lineno,$file);
+				}
+				$currsource = $content;
+				$Data->{$currnam}{'source'} = $content;
+			}
+			elsif ($name eq 'type')
+			{
+				if(not $currsource)
+				{
+					pwarn('type= specified before source=. Enabling SDF version 1 compatibility mode (will be removed in 0.6)',$file,$lineno);
+					return LoadSDF($file,$Data);
+				}
+				if (not $content =~ m{^(regex(/[si]+)?|minlength)\s*$})
+				{
+					if ($content =~ m{/})
+					{
+						perr('Unknown type or modifier specified, must be one of regex, minlength with one of the modifiers specified in the manpage.',$lineno,$file);
+					}
+					else
+					{
+						perr('Unknown type specified, must be one of regex, minlength',$lineno,$file);
+					}
+				}
+				$Data->{$currnam}{'type'} = $content;
+				$currtype = $content;
+			}
+			elsif (not $currsource)
+			{
+				perr('Data definitions located before source definition. source must be the first setting set for any definition because it changes how the rest is parsed',$lineno,$file);
+			}
+			elsif (not $currtype)
+			{
+				perr('Data definitions located before type definition. type must be the second setting set for any definition because it changes how the rest is parsed',$lineno,$file);
+			}
+			elsif ($name eq 'check')
+			{
+				if(not defined $Data->{$currnam}{'check'})
+				{
+					$Data->{$currnam}{'check'} = [];
+				}
+				push(@{$Data->{$currnam}{'check'}},$content);
+			}
+			else
+			{
+				if(not $name =~ /^(error|sortindex)$/)
+				{
+					if ($name =~ /^(regexes)$/)
+					{
+						perr('Illegal setting "'.$name.'" found in SDF file',$lineno,$file);
+					}
+					else
+					{
+						pwarn('Unknown setting "'.$name.'" found in SDF file',$lineno,$file);
+					}
+				}
+				$Data->{$currnam}{$name} = $content;
+			}
+		}
+	}
+	if ($currnam)
+	{
+		SDFFinalizeTest($Data,$currnam,$file,$lineno);
 	}
 	push(@LoadedSDF,$file);
 	return true;
@@ -1500,7 +1724,7 @@ sub AutoLoadSDF
 	{
 		swecDie(10,"Unable to find $name\n");
 	}
-	LoadSDF($loc.'/'.$name,\%Checks);
+	LoadSDFv2($loc.'/'.$name,\%Checks);
 	# Check if the user has an ~/.swecrc
 	if (-e $ENV{HOME}.'/.swecrc')
 	{
@@ -1508,7 +1732,7 @@ sub AutoLoadSDF
 		{
 			swecDie(10,"~/.swecrc exists but is not readable\n");
 		}
-		LoadSDF($ENV{HOME}.'/.swecrc',\%Checks);
+		LoadSDFv2($ENV{HOME}.'/.swecrc',\%Checks);
 	}
 	# Load the user supplied SDF if needed
 	if ($settings{SDFFile})
@@ -1521,7 +1745,7 @@ sub AutoLoadSDF
 		{
 			swecDie(10,"$settings{SDFFile}: is not readable\n");
 		}
-		LoadSDF($settings{SDFFile},\%Checks);
+		LoadSDFv2($settings{SDFFile},\%Checks);
 	}
 	GenerateSDFCache();
 }
@@ -1533,14 +1757,20 @@ sub GenerateSDFCache
 	foreach my $en (sort { $Checks{$a}->{sortindex} <=> $Checks{$b}->{sortindex} } keys(%Checks))
 	{
 		next if $IgnoreChecks{$en};
-		if ($Checks{$en}->{type} eq 'urlrex')
+
+		if ($Checks{$en}->{source} eq 'body')
+		{
+			push(@DefaultSortedChecks,$en);
+		}
+		elsif($Checks{$en}->{source} eq 'url')
 		{
 			push(@URLSortedChecks,$en);
 		}
 		else
 		{
-			push(@DefaultSortedChecks,$en);
+			die('Unknown check source "'.$Checks{$en}->{source}.'" for test '.$en."\n");
 		}
+
 	}
 }
 
