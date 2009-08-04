@@ -2014,32 +2014,45 @@ to INI-files, with a few minor differences.
 
 It consists of definitions of various checks, each check definition starts with a
 [NAME] header, where NAME is the name of the test. The next line is required to be
-the type statement, and all checks must have at least one "check", "error" and 
-"sortindex" statement. The general syntax is:
+the source statement followed by a type stetemt, and all checks must have at
+least one "check", "error" and "sortindex" statement. The general syntax is:
 
 	[NAME]
 	statement = value
+
+=head2 VERSION
+
+The version described here is SDFv2 (which is an incremental improvement over SDFv1
+which was used in SWEC 0.1.x-0.3.x), used in SWEC 0.4+. New tests should be written
+using this format, rather than SDFv1 (however, SWEC will be able to load v1 test
+files until SWEC 0.6).
 
 =head2 STATEMENTS
 
 =over
 
-=item type
+=item I<source>
 
-This is the type of check. See the CHECKS section for a list of the various types.
+This is the source for the check. See the SOURCES section for a list of the various
+sources.
 
-=item check
+=item I<type>
 
-This is a check of the type "type" (defined earlier). Some checks allow multiple
-check statements, see the CHECKS section
+This is the type of check. See the TYPES section for a list of the various types.
 
-=item error
+=item I<check>
+
+This is a check of the type "type" (defined earlier). A test can have as many
+check= statements as it wants, the page will have failed the test if I<one> of the
+check= tests fail.
+
+=item I<error>
 
 This is the error message you want reported to the user when the check finds something.
 You can use the following substitutions in the text.
 	%PARENT% = the file that referenced the file that contained the error being reported.
 
-=item sortindex
+=item I<sortindex>
 
 This is used for sorting which checks are to be run first. SWEC-bundled checks will
 never have a negative sortindex value (but may have any positive value), so if you need
@@ -2048,36 +2061,56 @@ Lower values gets run first.
 
 =back
 
-=head2 CHECKS
+=head2 SOURCES
 
 =over
 
-=item regex
+=item I<body>
+
+Runs the check(s) on the body of a page. This is the primary source, as it allows
+you to check for errors printed in the page body itself.
+
+=item I<url>
+
+Runs the check(s) on the URL leading to a page.  As an example of its use, SWEC
+uses the url source type to check for URLs with odd characters, newlines or
+that reference file:/ instead of http(s):// and friends.
+
+=back
+
+=head2 TYPES
+
+=over
+
+=item I<regex>
 
 This is a full perl regex which is supplied the entire (raw, unparsed) HTML of the
 page being tested. You can supply multiple check= statements, where any of them
 will trigger the error if they match.
 
-All regular expression tests are run with the 'i' and 's' flags, making them
-case insensitive and treating the entire response as a single line.
+This check can take various modifiers (you can write the check= entry as
+I<regex/B<modifiers>>).
 
-=item regexs
+Modifiers:
 
-This is the same as above, except that this one tries to be smart. It will convert
-any whitespace found in the regex to something that matches any whitespace,
-some &nbsp;, ignoring HTML tags and so on. This allows
-for more flexibility (and is probably the best choice for most searches), but
-has the downside of modifying your regular expression during runtime, adding
-more points of failure and taking some control away from you.
+=over
 
-=item urlrex
+=item B<i>
 
-This is the same as regex, but is checked against a URL instead of the contents
-of a page. This is the only test that checks against the URL instead of the content.
-As an example of its use, SWEC uses urlrex to check for URLs with odd characters, newlines or
-that reference file:/ instead of http(s):// and friends.
+Same as the usual regex /i modifier. Makes the expression case-insensitive.
 
-=item minlength
+=item B<s>
+
+Enables SWEC 'smart regex' mode. It will convert any whitespace found in the
+regex to something that matches any whitespace, some &nbsp;, ignoring HTML tags
+and so on. This allows for more flexibility (and is probably the best choice
+for most searches), but has the downside of modifying your regular expression
+during runtime, adding more points of failure and taking some control away from
+you.
+
+=back
+
+=item I<minlength>
 
 This is the minimum length of any file. check= is set to the minimum amount of characters
 you want any page to have.
@@ -2104,7 +2137,8 @@ and allow &nbsp; instead of a real space). The error will also output
 which URL referred to it, in case the page actually isn't valid.
 
 	[SWEC_404]
-	type = regexs
+	source = body
+	type = regex/is
 	check = 404(:)? file not found
 	check = file not found
 	error = This file/resource appears not to exist (linked to by %PARENT%)
@@ -2118,7 +2152,8 @@ appear in catalyst errors. This is a generic 'catch-all' for catalyst
 errors, when more specific checks does not match.
 
 	[SWEC_CATALYST_ERROR]
-	type = regexs
+	source = body
+	type = regex/is
 	check = Catalyst::Request
 	check = Catalyst::Response
 	error = Catalyst error
@@ -2131,7 +2166,8 @@ somehow to the perl carp functions. If it is found, then some sort
 of perl error has occurred.
 
 	[SWEC_PERL_CARP]
-	type = regexs
+	source = body
+	type = regex/is
 	check = /usr/(\w+/)+perl\d*?(/[^/]+)?/Carp/Clan.pm
 	check = /usr/(\w+/)+perl\d*?(/[^/]+)?/(CGI/)?Carp.pm
 	error = Unknown perl error (Carp)
@@ -2143,7 +2179,8 @@ This applies a regular expression to URLs, checking if the
 URL appears to have a printed perl reference in it.
 
 	[SWEC_URI_SCALAROBJ]
-	type = urlrex
+	source = url
+	type = regex
 	check = (ARRAY|HASH|SCALAR|GLOB)\(0x
 	error = Strange URL, appears to have tried to use perl objects as scalars. Was referenced by %PARENT%.
 	sortindex = 9
@@ -2176,7 +2213,13 @@ If you find a bug, please report it at L<http://random.zerodogg.org/swec/bugs>
 
 =head1 INCOMPATIBILITIES
 
-Previous versions returns 0 even if some tests failed.
+=over
+
+=item Previous versions returns 0 even if some tests failed.
+
+=item SWEC 0.6 and later will no longer be able to load SDFv1 test files.
+
+=back
 
 =head1 FILES
 
