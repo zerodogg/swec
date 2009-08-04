@@ -22,7 +22,8 @@
 
 # Some sites return a 404 page without returning a 404 HTTP status code
 [SWEC_404]
-type = regexs
+source = body
+type = regex/si
 check = 404(:)? file not found
 check = file not found
 error = This file/resource appears not to exist (linked to by %PARENT%)
@@ -31,18 +32,21 @@ sortindex = 999
 # This is the closest we can get to detecting random unhandled internal
 # errors without getting way too fuzzy.
 [SWEC_OTHER_INTERNAL_ERROR]
-type = regexs
+source = body
+type = regex/si
 check = Internal (server )?(error|failure)
 error = Internal error
 sortindex = 997
 
 [SWEC_DATABASE_ERROR]
-type = regexs
+source = body
+type = regex/si
 check = (Failed|Unable) to connect to database
 error = Failed to connect to database
 sortindex = 200
 
 [SWEC_FILE_LENGTH]
+source = body
 type = minlength
 check = 100
 error = Page was strangely short (less than 100 characters)
@@ -50,167 +54,193 @@ sortindex = 20
 
 # HTML::Mason
 [SWEC_MASON_ERROR]
-type = regexs
+source = body
+type = regex/si
 check = HTML::Mason::Request
 error = HTML::Mason error
 sortindex = 60
 
 [SWEC_MASON_PARAM]
-type = regexs
+source = body
+type = regex/si
 check = no value sent for required parameter.*Mason
 error = Mason template was missing a required parameter
 sortindex = 40
 
 [SWEC_MASON_EXCEPTION]
-type = regexs
+source = body
+type = regex/si
 check = HTML::Mason::Exceptions
 error = HTML::Mason exception
 sortindex = 49
 
 [SWEC_MASON_OPEN]
-type = regexs
+source = body
+type = regex/si
 check = could not open file .* for reading
 error = Page failed to open a file for reading
 sortindex = 42
 
 [SWEC_MASON_INCLUDE]
-type = regexs
+source = body
+type = regex/si
 check = could not find component for path
 error = Page appears to have a failed mason <& &> or ->comp() call
 sortindex = 40
 
 [SWEC_SYSTEM_ERROR]
-type = regexs
+source = body
+type = regex/si
 check = system error
 error = Mason-related, or other system error
 sortindex = 990
 
 # Catalyst
 [SWEC_CATALYST_CONTROLLER_EXCEPTION]
-type = regexs
+source = body
+type = regex/si
 check = Caught exception in.*Controller.*Request.*Catalyst
 error = Exception in Catalyst controller
 sortindex = 11
 
 [SWEC_CATALYST_EXCEPTION]
-type = regexs
+source = body
+type = regex/si
 check = Caught exception in.*Request.*Catalyst
 error = Catalyst exception
 sortindex = 12
 
 [SWEC_CATALYST_ERROR]
-type = regexs
+source = body
+type = regex/si
 check = Catalyst::Request
 check = Catalyst::Response
 error = Catalyst error
 sortindex = 35
 
 [SWEC_CATALYST_FRIENDLYERROR]
-type = regexs
+source = body
+type = regex/si
 check = \(en\) Please come back later
 error = Possible Catalyst error (looks like the user friendly catalyst error page)
 sortindex = 1000
 
 # Perl
 [SWEC_DBI_ERROR]
-type = regexs
+source = body
+type = regex/si
 check = DBI Exception
 check = DBD::mysql::st execute failed
 error = DBI error
 sortindex = 50
 
 [SWEC_DBIXC_ERROR]
-type = regexs
+source = body
+type = regex/si
 check = DBIx::Class::ResultSet::(next|find|search|count)\(\): DBI Exception
 error = DBIx::Class error
 sortindex = 25
 
 [SWEC_PERL_CARP]
-type = regexs
+source = body
+type = regex/si
 check = /usr/(\w+/)+perl\d*?(/[^/]+)?/Carp/Clan.pm
 check = /usr/(\w+/)+perl\d*?(/[^/]+)?/(CGI/)?Carp.pm
 error = Unknown perl error (Carp)
 sortindex = 999
 
 [SWEC_PERL_STRICTERR]
-type = regexs
+source = body
+type = regex/si
 check = Can't use .* as a .* while "strict refs" in use
 error = Attempted invalid use of a variable while in perl strict
 sortindex = 15
 
 [SWEC_PERL_SCALAROBJ]
-type = regexs
+source = body
+type = regex/si
 check = (ARRAY|HASH|SCALAR|GLOB)\(0x
 error = Appears to have printed perl references
 sortindex = 30
 
 # Cake
 [SWEC_CAKE_GENERICERROR]
-type = regexs
+source = body
+type = regex/si
 check = cake-stack-trace
 error = Unknown PHP-Cake error
 sortindex = 100
 
 # PHP
 [SWEC_PHP_INCLUDE]
-type = regexs
+source = body
+type = regex/si
 check = failed to open stream
 check = function\.include
 error = Page appears to have a failed PHP include(). Referenced by %PARENT%.
 sortindex = 10
 
 [SWEC_PHP_DB]
-type = regexs
+source = body
+type = regex/si
 check = (mysql|postgresql|sqlite)_connect
 error = Unknown database error
 sortindex = 100
 
 [SWEC_PHP_MAXCONN]
-type = regexs
+source = body
+type = regex/si
 check = User .+ already has more than \'max_user_connections\' active connections
 error = Maximum database connections exceeded
 sortindex = 50
 
 [SWEC_PHP_SYNTAX]
-type = regexs
+source = body
+type = regex/si
 check = Parse error: syntax error.*php
 check = Parse error: syntax error.*on line
 error = PHP syntax error
 sortindex = 90
 
 [SWEC_PHP_FAILEDFUNCTION]
-type = regexs
+source = body
+type = regex/si
 check = Warning(<[^>]+>)*: \S+\(\) \[(<[^>]+>)*function\.\S+(<[^>]+>)*\]:
 error = A call to a PHP function failed and was not handled
 sortindex = 90
 
 # URL checks
 [SWEC_NEWLINEURI]
-type = urlrex
+source = url
+type = regex
 check = \n
 error = URL with newlines, referenced by %PARENT%.
 sortindex = 10
 
 [SWEC_URI_SCALAROBJ]
-type = urlrex
+source = url
+type = regex
 check = (ARRAY|HASH|SCALAR|GLOB)\(0x
 error = Strange URL, appears to have tried to use perl objects as scalars. Was referenced by %PARENT%.
 sortindex = 9
 
 [SWEC_URI_LOCALFILE]
-type = urlrex
+source = url
+type = regex
 check = file\:\/\/
 error = URI points to a local file
 sortindex = 9
 
 [SWEC_URI_PERL_PKGNAME]
-type = urlrex
+source = url
+type = regex
 check = Catalyst::Engine::
 error = Used perl package names in URL
 sortindex = 11
 
 [SWEC_URI_HTMLENTITY]
-type = urlrex
+source = url
+type = regex
 check = &(amp|lt|gt)(;|%3B)
 error = HTML entities used in URL, linked to by %PARENT%
 sortindex = 13
