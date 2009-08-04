@@ -1421,7 +1421,7 @@ sub GetSDFRegexObject
 			$check =~ s/\s+/ /g;
 			$check =~ s/ /(\\s+|&nbsp;|<[^>]+>)+/g;
 		}
-		my $regex =  eval('qr/$check/'.$regexModifiers);
+		my $regex =  eval('qr/$check/s'.$regexModifiers);
 		if ($@)
 		{
 			perr('Failed to compile regular expression: '.$@,$name,$lineno,$file,true);
@@ -1515,18 +1515,18 @@ sub LoadSDF
 				if ($content eq 'urlrex')
 				{
 					$Data->{$currnam}{'source'} = 'url';
-					$Data->{$currnam}{'type'} = 'regex';
+					$Data->{$currnam}{'type'} = 'regex/i';
 				}
 				elsif($content =~ /regex/)
 				{
 					$Data->{$currnam}{'source'} = 'body';
 					if ($content =~ /regexs/)
 					{
-						$Data->{$currnam}{'type'} = 'regex/s';
+						$Data->{$currnam}{'type'} = 'regex/si';
 					}
 					else
 					{
-						$Data->{$currnam}{'type'} = 'regex';
+						$Data->{$currnam}{'type'} = 'regex/i';
 					}
 				}
 				elsif($content eq 'minlength')
