@@ -1668,7 +1668,6 @@ sub LoadSDFv2
 					perr('The "minlength" type can not be applied to "url" sources',$file,$lineno);
 				}
 				$Data->{$currnam}{'type'} = $content;
-				$currtype = $content;
 			}
 			elsif (not $currsource)
 			{
