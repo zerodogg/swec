@@ -1573,7 +1573,6 @@ sub LoadSDFv2
 	open (my $f, '<',$file) or swecDie(10,"Failed to open $file for reading: $!\n");
 	my $currnam;
 	my (
-		$currtype,
 		$currsource
 	);
 	my $lineno = 0;
@@ -1587,7 +1586,6 @@ sub LoadSDFv2
 		if (/^\[/)
 		{
 			my $prevnam = $currnam;
-			$currtype = undef;
 			$currsource = undef;
 			# This is a negative statement, add it to the ignore list.
 			if (/^\[\-/)
@@ -1654,7 +1652,7 @@ sub LoadSDFv2
 					pwarn('type= specified before source=. Enabling SDF version 1 compatibility mode (will be removed in 0.6)',$file,$lineno);
 					return LoadSDF($file,$Data);
 				}
-				if (not $content =~ m{^(regex(/[si]+)?|minlength)\s*$})
+				elsif (not $content =~ m{^(regex(/[si]+)?|minlength)\s*$})
 				{
 					if ($content =~ m{/})
 					{
@@ -1665,16 +1663,16 @@ sub LoadSDFv2
 						perr('Unknown type specified, must be one of regex, minlength',$lineno,$file);
 					}
 				}
+				elsif ($content eq 'minlength' and $currsource eq 'url')
+				{
+					perr('The "minlength" type can not be applied to "url" sources',$file,$lineno);
+				}
 				$Data->{$currnam}{'type'} = $content;
 				$currtype = $content;
 			}
 			elsif (not $currsource)
 			{
 				perr('Data definitions located before source definition. source must be the first setting set for any definition because it changes how the rest is parsed',$lineno,$file);
-			}
-			elsif (not $currtype)
-			{
-				perr('Data definitions located before type definition. type must be the second setting set for any definition because it changes how the rest is parsed',$lineno,$file);
 			}
 			elsif ($name eq 'check')
 			{
@@ -2009,16 +2007,19 @@ files/controllers.
 
 =head1 SDF FILE FORMAT
 
-The file format used by SWEC is SDF (SWEC definition file). Its syntax is similar
-to INI-files, with a few minor differences.
+The file format that you can use to write SWEC tests is SDF (SWEC definition file).
+Its syntax is similar to INI-files, with a few minor differences.
 
 It consists of definitions of various checks, each check definition starts with a
-[NAME] header, where NAME is the name of the test. The next line is required to be
-the source statement followed by a type stetemt, and all checks must have at
-least one "check", "error" and "sortindex" statement. The general syntax is:
+[NAME] header, where NAME is the name of the test. The next line is required to
+be the source statement, and all checks must have at least one "type", "check",
+"error" and "sortindex" statement. The general syntax is:
 
 	[NAME]
 	statement = value
+
+If you just want a quick overview of the format, check out the I<EXAMPLES>
+section.
 
 =head2 VERSION
 
@@ -2132,7 +2133,7 @@ See the bundled I<default.sdf> file for more checks.
 =item I<SWEC_404>
 
 This will look for the string 404: file not found, case insensitive, with an
-optional ":" and using the 'regexs' test (so it will ignore all html tags,
+optional ":" and using the 'smart regex' mode (so it will ignore all html tags,
 and allow &nbsp; instead of a real space). The error will also output
 which URL referred to it, in case the page actually isn't valid.
 
