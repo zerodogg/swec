@@ -208,42 +208,8 @@ GetOptions
 		shift;
 		my $file = shift;
 		local $| = true;
-		print "$file ";
 		LoadSDFv2($file,\%Checks);
-		foreach my $en (sort keys %Checks)
-		{
-			# Get a ref to the hash
-			my $ec = $Checks{$en};
-			# Regex check
-			if ($ec->{type} =~ /^(urlrex|regex(s))?$/)
-			{
-				foreach my $regex (@{$ec->{check}})
-				{
-					$_ = '1';
-					eval
-					{
-						/$regex/;
-					};
-					if ($@)
-					{
-						swecDie(10,"Error in regex for $en: $@\n");
-					}
-				}
-			}
-			# Minlength check
-			elsif ($ec->{type} eq 'minlength')
-			{
-				if($ec->{check} =~ /\D/)
-				{
-					swecDie(10,"Check needs to be an integer\n");
-				}
-			}
-			else
-			{
-				swecDie(10,"Unknown typecheck: $ec->{type} from $en\n");
-			}
-		}
-		print "syntax OK\n";
+		print "$file syntax OK\n";
 		exit(0);
 	},
 	'debuginfo' => sub {
@@ -1315,14 +1281,16 @@ sub PrintHelp {
 
 # SDF parsing
 # Purpose: Die with a usable error from problems in an SDF
-# Usage: perr(error_text,line_no,file, boolean near_line?);
+# Usage: perr(error_text,line_no,file, boolean near_line?,extrainfo);
 sub perr
 {
 	my $error = shift;
 	my $lineno = shift;
 	my $file = shift;
 	my $near = shift(@_) ? 'near' : 'at';
-	swecDie(2,"SDF parser error: $error $near line $lineno in $file\n");
+    my $extra = shift;
+    $extra = $extra ? '. '.$extra : '';
+	swecDie(2,"SDF parser error: $error $near line $lineno in $file$extra\n");
 }
 
 # Purpose: Warn with a usable message about possible SDF problems
@@ -1471,7 +1439,7 @@ sub LoadSDF
 				($currnam = $_) =~ s/(\[|\])*//g;
 				if ($Data->{$currnam})
 				{
-					perr('Duplicate definition of '.$currnam,$lineno,$file);
+					perr('Duplicate definition of '.$currnam,$lineno,$file,false,'Maybe this file contains mixed SDFv1 and SDFv2 definitions?');
 				}
 				$Data->{$currnam} = {};
 			}
@@ -1538,9 +1506,9 @@ sub LoadSDF
 			}
 			elsif (not $currtype)
 			{
-				perr('Data definitions located before type definition. type must be the first setting set for any definition because it changes how the rest is parsed (maybe you have mixed SDFv1 and SDFv2?)',$lineno,$file);
+				perr('Data definitions located before type definition',$lineno,$file,false,'type must be the first setting set for any definition because it changes how the rest is parsed (maybe you have mixed SDFv1 and SDFv2?)');
 			}
-			else
+			elsif ($name eq 'check')
 			{
 				if(not defined $Data->{$currnam}{'check'})
 				{
@@ -1548,6 +1516,21 @@ sub LoadSDF
 				}
 				push(@{$Data->{$currnam}{'check'}},$content);
 			}
+            else
+            {
+				if(not $name =~ /^(error|sortindex)$/)
+				{
+					if ($name =~ /^(regexes)$/)
+					{
+						perr('Illegal setting "'.$name.'" found in SDF file',$lineno,$file);
+					}
+					else
+					{
+						pwarn('Unknown setting "'.$name.'" found in SDF file',$lineno,$file);
+					}
+				}
+                $Data->{$currnam}{$name} = $content;
+            }
 		}
 	}
 	close($f);
@@ -1649,7 +1632,8 @@ sub LoadSDFv2
 			{
 				if(not $currsource)
 				{
-					pwarn('type= specified before source=. Enabling SDF version 1 compatibility mode (will be removed in 0.6)',$file,$lineno);
+					pwarn('type= specified before source=. Enabling SDF version 1 compatibility mode for this file (will be removed in 0.6)',$lineno,$file);
+                    delete($Data->{$currnam});
 					return LoadSDF($file,$Data);
 				}
 				elsif (not $content =~ m{^(regex(/[si]+)?|minlength)\s*$})
@@ -1671,7 +1655,7 @@ sub LoadSDFv2
 			}
 			elsif (not $currsource)
 			{
-				perr('Data definitions located before source definition. source must be the first setting set for any definition because it changes how the rest is parsed',$lineno,$file);
+				perr('Data definitions located before source definition',$lineno,$file,false,'source must be the first setting set for any definition because it changes how the rest is parsed');
 			}
 			elsif ($name eq 'check')
 			{
