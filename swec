@@ -701,27 +701,30 @@ sub ErrorReport
 		$rep .= "\nNo errors to report.\n";
 	}
 	print $rep;
-	if(keys %ErrorPages)
+	if ($session)
 	{
-		appendToSession('LastRawErrorPages',\%ErrorPages,true);
+		if(keys %ErrorPages)
+		{
+			appendToSession('LastRawErrorPages',\%ErrorPages,true);
+		}
+		appendToSession('lasthumanlog',$rep);
+		appendToSession('baseuri',$baseURI);
+		appendToSession('logfile',$logfile);
+		appendToSession('pageSeeds',\@PageSeeds);
+		appendToSession('HasRun',\%HasRun);
+		appendToSession('HardMax',$settings{HardMax});
+		appendToSession('SoftMax',$settings{SoftMax});
+		appendToSession('HardErrorMax',$settings{HardErrorMax});
+		appendToSession('BaseUA',$BaseUA);
+		appendToSession('GiveMeUA',$GiveMeUA);
+		appendToSession('LoadedSDF',\@LoadedSDF);
+		appendToSession('MatchMax',\%MatchMax);
+		if ($settings{Debug})
+		{
+			appendToSession('Debug_SDF',\%Checks,true);
+		}
+		writeSession();
 	}
-	appendToSession('lasthumanlog',$rep);
-	appendToSession('baseuri',$baseURI);
-	appendToSession('logfile',$logfile);
-	appendToSession('pageSeeds',\@PageSeeds);
-	appendToSession('HasRun',\%HasRun);
-	appendToSession('HardMax',$settings{HardMax});
-	appendToSession('SoftMax',$settings{SoftMax});
-	appendToSession('HardErrorMax',$settings{HardErrorMax});
-	appendToSession('BaseUA',$BaseUA);
-	appendToSession('GiveMeUA',$GiveMeUA);
-	appendToSession('LoadedSDF',\@LoadedSDF);
-	appendToSession('MatchMax',\%MatchMax);
-	if ($settings{Debug})
-	{
-		appendToSession('Debug_SDF',\%Checks,true);
-	}
-	writeSession();
 	if ($logfile)
 	{
 		open (my $rf,'>',$logfile) or swecDie(10,'Failed to open '.$logfile.' for writing: '.$!);
