@@ -1027,8 +1027,9 @@ sub FetchLink
 	$prettyURL =~ s/^https?:\/\/[^\/]+//;
 	# If we are in subdomain mode, or if we have already printed an identical
 	# URL, only remove the http bit but keep the domain.
-	if ($settings{checkSubDomains} || $HasPrinted{$prettyURL})
+	if ($settings{checkSubDomains} or $HasPrinted{$prettyURL})
 	{
+		$prettyURL = $URL;
 		$prettyURL =~ s{^https?://}{};
 	}
 	# Mark as 'has been printed' 
