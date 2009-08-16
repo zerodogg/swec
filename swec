@@ -92,6 +92,7 @@ my %settings = (
 	OnlyNewErrors => false,	# Boolean, true if we should only print information about new errors
 	keepGoing => false,		# Boolean, true if we should just keep on parsing links from pages with errors
 	htmlInfo => false,		# Boolean, true if we don't have HTML::LinkExtractor but have HTML::Entities
+	checkSubDomains => false,# Boolean, true if we should allow subdomains in the URIRegex
 );
 
 # -- Global hashes --
@@ -110,6 +111,7 @@ my (
 	%MatchMax,
 	%MatchedMax,
 	%HasRun,		# Hash of url => true pairs of URLs that have been processed
+	%HasPrinted,	# Hash of url path => true pairs of URLs that have been printed
 	%CurrLinks,		# Hash of url => true pairs of URLs that are known not to have been processed
 	%ErrorPages,	# Hash of url => error pairs
 	%ErrorCount,	# Hash of url => number of errors
@@ -220,6 +222,7 @@ GetOptions
 		my $t = shift;
 		$IgnoreChecks{$t} = true;
 	},
+	'checksub|checksubdomains' => \$settings{checkSubDomains},
 	'keepgoing' => \$settings{keepGoing},
 	'nohead' => \$settings{skipHEAD},
 	'lwphead' => \&LWP_CommandlineEmu,
@@ -359,17 +362,14 @@ sub prepareBaseURI
 			}
 		}
 	}
+
 	# Make sure that it starts with something://, if not, assume http://
 	if(not $baseURI =~ m#^\w+://#)
 	{
-		$baseURIRegex = '(http://)?'.'(www\.)?'.$baseURI;
 		$baseURI = 'http://'.$baseURI;
 		$madeAssumption = true;
 	}
-	if(not $baseURIRegex)
-	{
-		$baseURIRegex = $baseURI;
-	}
+	prepareBaseURIRegex();
 	# Output a message that says we assumed something
 	# Ensure we have at least one page seed and load from the session if needed
 	if(not @PageSeeds)
@@ -402,6 +402,35 @@ sub prepareBaseURI
 	if($session and not keys %MatchMax and $session->{MatchMax})
 	{
 		%MatchMax = %{$session->{MatchMax}};
+	}
+}
+
+# Purpose: Initialize the base URI regex
+# Usage: prepareBaseURIRegex();
+sub prepareBaseURIRegex
+{
+	my $scheme = $baseURI;
+	my $domain = $baseURI;
+	$domain =~ s{^\w+://}{};
+	$scheme =~ s{^(\w+://).*}{$1};
+	if (not $scheme)
+	{
+		$scheme = 'http://';
+	}
+	if ($settings{checkSubDomains})
+	{
+		$baseURIRegex = qr{($scheme)?([^/]+\.)?$domain};
+	}
+	else
+	{
+		if ($domain =~ /^www/)
+		{
+			$baseURIRegex = qr/($scheme)?$domain/;
+		}
+		else
+		{
+			$baseURIRegex = qr/($scheme)?(www\.)?$domain/;
+		}
 	}
 }
 
@@ -495,6 +524,7 @@ sub help
 	PrintHelp('','--keepgoing','Parse a page for links even if it contained errors');
 	if ($all)
 	{
+		PrintHelp('','--checksub','Allow SWEC to follow and check links to subdomains of the --baseurl');
 		PrintHelp('-p','--softpagelimit','Change the soft page limit, the max amount of pages of any link type to request, this may be exceeded but swec will try not to (default: 20).');
 		PrintHelp('-h','--hardpagelimit','Change the hard page limit, the max amount of pages of any link type to request, this should never be exceeded (default: 30).');
 		PrintHelp('-e','--harderrorlimit','Change the hard error page limit, the max amount of pages of any link type to request before deciding that all pages of that type will return errors (and thus not request any more) (default: 5)');
@@ -991,9 +1021,22 @@ sub FetchLink
 		delete($source->{$URL});
 		return;
 	}
-    (my $prettyURL = $URL) =~ s/^https?:\/\/[^\/]+//;
+
+	# Generate a pretty URL for printing
+	my $prettyURL = $URL;
+	$prettyURL =~ s/^https?:\/\/[^\/]+//;
+	# If we are in subdomain mode, or if we have already printed an identical
+	# URL, only remove the http bit but keep the domain.
+	if ($settings{checkSubDomains} || $HasPrinted{$prettyURL})
+	{
+		$prettyURL =~ s{^https?://}{};
+	}
+	# Mark as 'has been printed' 
+	$HasPrinted{$prettyURL} = true;
+
     printf('- %-30s : ',$prettyURL);
 	$HasRun{$URL} = $source->{$URL};
+
 	my @realError;
 	my $genericError = 'Failed to fetch page. LWP said: "%s" - page was referenced by: %s';
 	my $c;
@@ -1845,6 +1888,13 @@ domain/url for pages that have relative paths. Optionally you may omit
 --baseurl and simply supply the URL on the command-line without
 the parameter (ie. I<swec example.org> and I<swec --baseurl example.org> are
 essentially the same).
+
+=item B<--checksub>
+
+Allow SWEC to descend into subdomains of --baseurl. It will then follow
+any links that lead to subdomains of the supplied --baseurl and check
+those as well. Useful for running a quick check of a site and all of
+its linked children.
 
 =item B<-s, --urlseed>
 
