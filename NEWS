@@ -6,6 +6,7 @@ SWEC 0.4
 - Documentation improvements
 - Moved to a new version of the SDF format (SDFv2) that is more flexible,
 	easier to extend and faster (pre-compiles regexes)
+- Added --checksub, option to allow SWEC to descend into subdomains
 
 SWEC 0.3
 --------
