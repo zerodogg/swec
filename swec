@@ -541,31 +541,43 @@ sub GetRealUrl
 {
 	my $URL = shift;
 	my $parent = shift;
-	if( $URL =~ m#^(/|https?)# )
+	my $return;
+	if( $URL =~ m#^(https?)# )
 	{
 		return $URL;
 	}
-	$parent = getBaseURL($parent);
-	$parent =~ s/^https?:\/\/[^\/]+//;
-	if ($parent =~ /\/$/)
+	elsif(not $URL =~ m{^/})
 	{
-		return ($parent.$URL);
-	}
-	elsif($URL =~ /^\?/)
-	{
-		$parent =~ s/\?.*//;
-		return $parent.$URL;
-	}
-	elsif ($parent =~ /\w+\.\w+$/)
-	{
-		$parent =~ s/\/+\w+\.\w+$//;
-		return ($parent.'/'.$URL);
+		my $parentPath = getBaseURL($parent);
+		$parentPath =~ s/^https?:\/\/[^\/]+//;
+		if ($parentPath =~ /\/$/)
+		{
+			$return = $parentPath.$URL;
+		}
+		elsif($URL =~ /^\?/)
+		{
+			$parentPath =~ s/\?.*//;
+		}
+		elsif ($parentPath =~ /\w+\.\w+$/)
+		{
+			$parentPath =~ s/\/+\w+\.\w+$//;
+		}
+		$return = $parentPath.$URL;
 	}
 	else
 	{
-		# This might not be quite right, though hopefully it is.
-		return $parent.'/'.$URL;
+		$return = $URL;
 	}
+	if ($parent =~ m{^http})
+	{
+		$parent =~ s{^(https?://[^/]+).*}{$1};
+		$return = $parent.'/'.$return;
+	}
+	else
+	{
+		$return = $baseURI.'/'.$return;
+	}
+	return $return;
 }
 
 # Purpose: Emulate the commandline GET and HEAD lwp commands
@@ -858,9 +870,9 @@ sub ExtractLinks
 		if(not $href =~ m#^\w+://#)
 		{
 			$href = $baseURI.'/'.$href;
-			$href =~ s#/+#/#g;
-			$href =~ s#^(https?):/#$1://#g;
 		}
+		$href =~ s#/+#/#g;
+		$href =~ s#^(https?):/([^/]+)/?#$1://$2/#g;
 		my $base = getBaseURL($href);
 		# Don't fetch a page that has had errors more than $settings{HardErrorMax} times and don't fetch any page more than $settings{SoftMax} times.
 		if ((defined $ErrorCount{$base} && $ErrorCount{$base} > $settings{HardErrorMax}) or (defined $PageCount{$base} && $PageCount{$base} > $settings{SoftMax}))

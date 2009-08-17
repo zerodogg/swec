@@ -7,6 +7,7 @@ SWEC 0.4
 - Moved to a new version of the SDF format (SDFv2) that is more flexible,
 	easier to extend and faster (pre-compiles regexes)
 - Added --checksub, option to allow SWEC to descend into subdomains
+- URL generation cleanups
 
 SWEC 0.3
 --------
