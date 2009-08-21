@@ -8,6 +8,7 @@ SWEC 0.4
 	easier to extend and faster (pre-compiles regexes)
 - Added --checksub, option to allow SWEC to descend into subdomains
 - URL generation cleanups
+- Added --noignore
 
 SWEC 0.3
 --------

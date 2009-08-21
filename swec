@@ -93,6 +93,7 @@ my %settings = (
 	keepGoing => false,		# Boolean, true if we should just keep on parsing links from pages with errors
 	htmlInfo => false,		# Boolean, true if we don't have HTML::LinkExtractor but have HTML::Entities
 	checkSubDomains => false,# Boolean, true if we should allow subdomains in the URIRegex
+	noIgnores => false,		# Boolean, true if default --matchmax ignores should not be added
 );
 
 # -- Global hashes --
@@ -225,6 +226,7 @@ GetOptions
 	'checksub|checksubdomains' => \$settings{checkSubDomains},
 	'keepgoing' => \$settings{keepGoing},
 	'nohead' => \$settings{skipHEAD},
+	'noignores' => \$settings{noIgnores},
 	'lwphead' => \&LWP_CommandlineEmu,
 	'lwpget' => \&LWP_CommandlineEmu,
 	'onlynew' => sub {
@@ -262,6 +264,21 @@ sub main
 	InitLWP();
 	# Initialize link extractor
 	initExtractor();
+
+	if(not $settings{noIgnores})
+	{
+		foreach my $def (qw(logout delete))
+		{
+			if(not defined $MatchMax{$def})
+			{
+				$MatchMax{$def} = {
+					max => 0,
+					reversed => false,
+				};
+				$MatchedMax{$def} = 0;
+			}
+		}
+	}
 
 	# Purge STDOUT at once
 	$| = true;
@@ -905,7 +922,7 @@ sub ExtractLinks
 			}
 		}
 		# Check MatchMax
-		if(not $CurrLinks{$href})
+		if(not $CurrLinks{$href} and not $HasRun{$href})
 		{
 			my $skip = 0;
 			foreach my $check (keys %MatchMax)
@@ -979,7 +996,10 @@ sub AddError
 sub shouldCheckURL
 {
 	my $URL = shift;
-	if (defined $HasRun{$URL} or not $URL =~ /^$baseURIRegex/ or $URL =~ /(logout|delete)/)
+	if 	(
+			(defined $HasRun{$URL}) or
+			(not $URL =~ /^$baseURIRegex/)
+		)
 	{
 		return false;
 	}
@@ -1855,9 +1875,10 @@ similar).
 
 Since you may often want SWEC to be logged in on your site, you have to be
 careful. When logged in, SWEC will still click on all links it finds, including
-things like 'join group' or 'delete account' (though it has some magic trying to
-avoid the latter). Therefore it is highly recommended that when you run SWEC as a
-logged-in user on a site, use a test server, not the live one.
+things like 'join group' or 'delete account' (though by default SWEC attempts to
+avoid the latter, see --noignore). Therefore it is highly recommended that when
+you run SWEC as a logged-in user on a site, use a test server, not the live
+one.
 
 Running SWEC on a live site without being logged in as a user is perfectly fine,
 it won't do anything a normal crawler wouldn't do (well, not exactly true, SWEC
@@ -1951,6 +1972,8 @@ not download those pages and will not run any tests on the pages itself).
 
 You can add as many --matchmax parameters as you want.
 
+See also --noignore.
+
 Examples:
 
 =over
@@ -1977,6 +2000,12 @@ If a URL matches multiple patterns, then each patterns counter will be increased
 This means that if you have the setup '--matchmax files=30' and '--matchmax edit=200'
 and the url '/files/edit' then that will increase the counter for both files=30 and
 edit=200, because it matches both.
+
+=item B<--noignore>
+
+By default SWEC will pretend I<--matchmax delete=0> and I<--matchmax logout=0> was 
+supplied to avoid deleting stuff and logging out when logged in. If you supply this
+parameter SWEC will not add these matchamx entries.
 
 =item B<-l, --log>
 
