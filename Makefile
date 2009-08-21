@@ -39,9 +39,12 @@ clean:
 	rm -rf swec-$(VERSION)
 	rm -f swec.1
 # Verify syntax
-test:
+sanity:
 	@perl -c swec
 	@./swec --validate default.sdf
+# Run tests
+test: sanity
+	@(cd tests && ./runTests)
 # Create a manpage from the POD
 man:
 	pod2man --name "Simple Web Error Checker" --center "" --release "swec $(VERSION)" ./swec ./swec.1
