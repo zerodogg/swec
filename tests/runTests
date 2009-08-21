@@ -94,11 +94,12 @@ $| = 1;
 my $exit = 0;
 my $ran = 0;
 my $errors = 0;
+my @failed;
 
+print "Running tests: ";
 foreach my $test (sort keys %tests)
 {
 	$ran++;
-	print "Running test $test... ";
 	my $i = $tests{$test};
 	my @cmd = ('../swec','-x','SWEC_FILE_LENGTH');
 	if ($i->{params})
@@ -115,30 +116,37 @@ foreach my $test (sort keys %tests)
 
 	if ($r == 0)
 	{
-		print "success\n";
+		print '+';
 	}
 	else
 	{
-		print "failed\n";
-		print "Tried running: ".join(' ',@cmd)."\n";
-		if(not $i->{succeed})
-		{
-			print "Expected the command to fail, but it succeeded\n";
-		}
-		else
-		{
-			print "Expected the command to succeed, but it failed\n";
-		}
-		$exit = 1;
+		print '-';
+		push(@failed,{ cmd => join(' ',@cmd),
+				test => $test,
+			});
 		$errors++;
 	}
 
 }
+print "\n";
 kill('TERM',$httpPid);
 print "\n";
 if ($errors)
 {
 	print "$errors/$ran tests failed\n";
+	foreach my $fail (@failed)
+	{
+		print "The test $fail->{test} failed\n";
+		print " It ran: $fail->{cmd}\n";
+		if ($tests{$fail->{test}}->{succeed})
+		{
+			print " It expected the command to succeed - it failed.\n";
+		}
+		else
+		{
+			print " It expected the command to fail - it succeeded.\n";
+		}
+	}
 }
 else
 {
