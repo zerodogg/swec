@@ -1,0 +1,4 @@
+This directory contains a simple HTTPd (./testServer) and the
+basic SWEC automated test script (./runTests).
+
+Together they are used to sanity check swec before a release.

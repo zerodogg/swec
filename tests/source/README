@@ -1,0 +1,3 @@
+These are test documents for triggering certain tests in SWEC.
+The HTML is not valid, this is because they're not actually for
+browsing and the SWEC parser will ignore all non-link HTML anyway.

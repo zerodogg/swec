@@ -1,0 +1,85 @@
+#!/usr/bin/perl
+# testServer
+# Copyright (C) Eskild Hustvedt 2009
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+use strict;
+use warnings;
+
+my $server = SWECtestHTTPD->new(8123);
+$server->run();
+exit(0);
+
+package SWECtestHTTPD;
+use HTTP::Server::Simple::CGI;
+use parent 'HTTP::Server::Simple::CGI';
+
+sub handle_request
+{
+	my ($self,$cgi) = @_;
+	my $url = $cgi->path_info();
+	if (my $path = resolve_path($url))
+	{
+		print "HTTP/1.0 200 OK\r\n";
+		print $cgi->header;
+		open(my $i,'<',$path);
+		if(not $i)
+		{
+			print "\nSERVER ERROR (404 NOT FOUND): FAILED TO OPEN FOR REAIDNG: $!\n";
+		}
+		else
+		{
+			print $_ while(<$i>);
+			close($i);
+		}
+	}
+	else
+	{
+		print "HTTP/1.0 400 Not Found\r\n";
+		print $cgi->header;
+		print "404 Error: File not found.\n";
+	}
+	return 1;
+}
+
+sub resolve_path
+{
+	my $path = shift;
+	my $base = shift;
+	if (not defined $path or not length $path)
+	{
+		$path = '';
+	}
+	$path =~ s/\.\./\./g;
+	$path =~ s{^http://[^/]+}{};
+	my $full = './source/'.$path;
+	if ($base)
+	{
+		return $full;
+	}
+	if (-e $full && ! -d $full)
+	{
+		return $full;
+	}
+	elsif(-e $full.'/index.html')
+	{
+		return $full.'/index.html';
+	}
+	return undef;
+}
+
+sub print_banner {}
+
+1;
