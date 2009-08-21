@@ -10,6 +10,10 @@ SWEC 0.4
 - URL generation cleanups
 - Added --noignore
 - Code cleanups
+- Fixed a bug causing SWEC to fail when user-supplied URLs contained port
+	numbers and the URLs was not supplied as explicit seeds, but alone
+	on the command-line.
+- Added basic automated tests for SWEC
 
 SWEC 0.3
 --------

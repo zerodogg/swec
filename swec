@@ -398,9 +398,12 @@ sub prepareBaseURI
 			}
 			if ($useURLSeed)
 			{
-				$useURLSeed =~ s{^\w+://(www\.)?\w+\.[^/]+?}{};
+				$useURLSeed =~ s{^\w+://[^/]+}{};
 				$useURLSeed =~ s{/+}{/};
-				$useURLSeed = '/'.$useURLSeed;
+				if(not $useURLSeed =~ m{^/})
+				{
+					$useURLSeed = '/'.$useURLSeed;
+				}
 				print "Assuming --urlseed $useURLSeed\n";
 				push(@PageSeeds,$useURLSeed);
 			}
