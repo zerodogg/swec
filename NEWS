@@ -9,6 +9,7 @@ SWEC 0.4
 - Added --checksub, option to allow SWEC to descend into subdomains
 - URL generation cleanups
 - Added --noignore
+- Code cleanups
 
 SWEC 0.3
 --------

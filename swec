@@ -109,8 +109,7 @@ my %settings = (
 my %Checks;
 
 my (
-	%MatchMax,
-	%MatchedMax,
+	%MatchMax,		# Hash of expression => setting pairs. See addMatchMax()
 	%HasRun,		# Hash of url => true pairs of URLs that have been processed
 	%HasPrinted,	# Hash of url path => true pairs of URLs that have been printed
 	%CurrLinks,		# Hash of url => true pairs of URLs that are known not to have been processed
@@ -119,6 +118,10 @@ my (
 	%PageCount,		# Hash of url => number of pages fetched
 	%IgnoreChecks,	# Hash of SWEC/SDF checks to ignore
 	%wasPageSeed,	# Hash of url => true pairs of URLs that were seeds
+);
+my %MatchedMax = (
+	seen => {},			# If we have seen a URL previously, its status is saved here
+	checkCount => {},	# Contains how many times an expression has matched
 );
 
 # -- Global objects --
@@ -185,11 +188,7 @@ GetOptions
 		{
 			swecDie(10,"Regular expression error in --matchmax: $@");
 		}
-		$MatchMax{$match} = {
-			max => $no,
-			reversed => $reversed,
-		};
-		$MatchedMax{$match} = 0;
+		addMatchMax($match,$no,$reversed);
 	},
 	'b|baseurl|baseuri=s' => \$baseURI,
 	'l|log=s' => \$logfile,
@@ -271,11 +270,7 @@ sub main
 		{
 			if(not defined $MatchMax{$def})
 			{
-				$MatchMax{$def} = {
-					max => 0,
-					reversed => false,
-				};
-				$MatchedMax{$def} = 0;
+				addMatchMax($def,0,false);
 			}
 		}
 	}
@@ -921,33 +916,6 @@ sub ExtractLinks
 				last;
 			}
 		}
-		# Check MatchMax
-		if(not $CurrLinks{$href} and not $HasRun{$href})
-		{
-			my $skip = 0;
-			foreach my $check (keys %MatchMax)
-			{
-				my $result = 0;
-				if (not $MatchMax{$check}->{reversed} and $href =~ /$check/)
-				{
-					$result = 1;
-				}
-				elsif ($MatchMax{$check}->{reversed} and not $href =~ /$check/)
-				{
-					$result = 1;
-				}
-
-				if ($result)
-				{
-					$MatchedMax{$check}++;
-					if ($MatchMax{$check}->{max} <= $MatchedMax{$check})
-					{
-						$skip = 1;
-					}
-				}
-			}
-			next if $skip;
-		}
 		if(not $err)
 		{
 			$CurrLinks{$href} = $url;
@@ -996,6 +964,7 @@ sub AddError
 sub shouldCheckURL
 {
 	my $URL = shift;
+	# Base check
 	if 	(
 			(defined $HasRun{$URL}) or
 			(not $URL =~ /^$baseURIRegex/)
@@ -1003,7 +972,57 @@ sub shouldCheckURL
 	{
 		return false;
 	}
+	if (defined $MatchedMax{seen}->{$URL})
+	{
+		return $MatchedMax{seen}->{$URL};
+	}
+	# Matchmax check
+	foreach my $check (keys %MatchMax)
+	{
+		my $result = 0;
+		if (not $MatchMax{$check}->{reversed} and $URL =~ /$check/)
+		{
+			$result = 1;
+		}
+		elsif ($MatchMax{$check}->{reversed} and not $URL =~ /$check/)
+		{
+			$result = 1;
+		}
+
+		if ($result)
+		{
+			$MatchedMax{checkCount}->{$check}++;
+			if ($MatchMax{$check}->{max} < $MatchedMax{checkCount}->{$check})
+			{
+				$MatchedMax{seen}->{$URL} = false;
+				return false;
+			}
+			$MatchedMax{seen}->{$URL} = true;
+		}
+	}
 	return true;
+}
+
+# Purpose: Add a 'MatchMax' test
+# Usage: addMatchMax('expression',max,reversed?);
+sub addMatchMax
+{
+	my $expression = shift;
+	my $max = shift;
+	my $reversed = shift;
+	eval
+	{
+		$expression = qr/$expression/;
+		1;
+	} or do {
+		swecDie('Failed to compile regular expression /'.$expression.'/: '.$@);
+	};
+
+	$MatchMax{$expression} = {
+		max => $max,
+		reversed => $reversed,
+	};
+	$MatchedMax{checkCount}->{$expression} = 0;
 }
 
 # Purpose: Loop over a hash or array of links and fetch each one in turn, running checks on the content recieved
