@@ -1899,12 +1899,12 @@ Since you may often want SWEC to be logged in on your site, you have to be
 careful. When logged in, SWEC will still click on all links it finds, including
 things like 'join group' or 'delete account' (though by default SWEC attempts to
 avoid the latter, see --noignore). Therefore it is highly recommended that when
-you run SWEC as a logged-in user on a site, use a test server, not the live
-one.
+you run SWEC as a logged-in user on a site, either use a test server or specify
+strict --matchmax settings that makes SWEC avoid following such links.
 
 Running SWEC on a live site without being logged in as a user is perfectly fine,
-it won't do anything a normal crawler wouldn't do (well, not exactly true, SWEC
-will ignore robots.txt).
+it won't do anything a normal crawler wouldn't do (except that SWEC will ignore
+robots.txt).
 
 It also has various helpers to assist with some other basic debugging tasks,
 such as a cookie-supporting version of lwp-request's HEAD and GET commands.
@@ -1983,8 +1983,8 @@ SWEC will check. It takes a parameter in the form:
 
 	[REGEX]=[COUNT]
 
-[REGEX] is a perl regular expression (which can be just a basic string as well)
-, optionally preceeded by a !. If REGEX starts with ! then the ! will be
+[REGEX] is a perl regular expression (which can be just a basic string as well),
+optionally preceeded by a !. If REGEX starts with ! then the ! will be
 removed from the expression and it will be labeled as a reverse check.
 
 SWEC will only run on COUNT number of URLs that matches REGEX (or, if it is
@@ -2027,7 +2027,7 @@ edit=200, because it matches both.
 
 By default SWEC will pretend I<--matchmax delete=0> and I<--matchmax logout=0> was 
 supplied to avoid deleting stuff and logging out when logged in. If you supply this
-parameter SWEC will not add these matchamx entries.
+parameter SWEC will not add these matchmax entries.
 
 =item B<-l, --log>
 
