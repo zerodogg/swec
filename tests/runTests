@@ -32,61 +32,74 @@ my %tests = (
 	NOERRORS_SINGLE=> {
 		succeed => 1,
 		path => '/noerrors/single',
+		description => 'Simple single-page test with no errors',
 	},
 	NOERRORS_BASIC => {
 		succeed => 1,
 		path => '/noerrors/basic',
+		description => 'Simple multi-page test with no errors',
 	},
 	NOERRORS_COMPLEX => {
 		succeed => 1,
 		path => '/noerrors/complex',
+		description => 'Complex multi-page test with no errors',
 	},
 	NOERRORS_COMPLEX_ERRORSEED => {
 		succeed => 0,
 		path => '/noerrors/complex',
 		params => [ qw(-s /errors/complex) ],
+		description => 'Complex multi-page test with an additional seed containing errors',
 	},
 	NOERRORS_COMPLEX_SEEDMATCH => {
 		succeed => 1,
 		path => '/noerrors/complex',
 		params => [ qw(-s /errors/basic -m basic=0) ],
+		description => 'Complex multi-page test with an additional seed containing errors and a --matchmax that ensures the error pages are not checked',
 	},
 	ERRORS_SINGLE=> {
 		succeed => 0,
 		path => '/errors/single',
+		description => 'Simple single-page test with errors',
 	},
 	ERRORS_BASIC => {
 		succeed => 0,
 		path => '/errors/basic',
+		description => 'Simple multi-page test with errors',
 	},
 	ERRORS_COMPLEX => {
 		succeed => 0,
 		path => '/errors/complex',
+		description => 'Complex multi-page test with errors',
 	},
 	ERRORS_COMPLEX_NOHEAD => {
 		succeed => 0,
 		path => '/errors/complex',
 		params => [ qw(--nohead) ],
+		description => 'Complex multi-page test with errors, using --nohead',
 	},
 	ERRORS_COMPLEX_KEEPGOING => {
 		succeed => 0,
 		path => '/errors/complex',
 		params => [ qw(--keepgoing) ],
+		description => 'Complex multi-page test with errors, using --keepgoing',
 	},
 	ERRORS_COMPLEX_NOCHECKS => {
 		succeed => 1,
 		path => '/errors/complex',
 		params => [ qw(-m .=0) ],
+		description => 'Complex multi-page test with errors, using -m .=0 to ensure no pages are checked',
 	},
 	ERRORS_COMPLEX_ERRFILTER => {
 		succeed => 1,
 		path => '/errors/complex',
 		params => [ qw(-m test=0 -m html=0) ],
+		description => 'Complex multi-page test with errors, using -m params to ensure no pages with errors are checked',
 	},
 	HTTPD_404 => {
 		succeed => 0,
 		path => '/nonexisting/404/path',
 		params => [ qw(-s /noerrors/complex --keepgoing) ],
+		description => 'Initial 404 path, with additional noerrors/complex seed and using --keepgoing',
 	},
 );
 
@@ -145,6 +158,32 @@ if ($errors)
 		else
 		{
 			print " It expected the command to fail - it succeeded.\n";
+		}
+		if ($tests{$fail->{test}}->{description})
+		{
+			my $desc = 'Test description: '.$tests{$fail->{test}}->{description};
+			my $currdesc;
+			my $GeneratedDesc;
+			my $maxlen = 79;
+			foreach my $part (split(/ /,$desc))
+			{
+				if(defined $GeneratedDesc)
+				{
+					if ((length($currdesc) + length($part) + 2) > $maxlen)
+					{
+						$GeneratedDesc .= "\n  ";
+						$currdesc = '  ';
+					}
+					else
+					{
+						$currdesc .= ' ';
+						$GeneratedDesc .= ' ';
+					}
+				}
+				$currdesc .= $part;
+				$GeneratedDesc .= $part;
+			}
+			print ' '.$GeneratedDesc."\n";
 		}
 	}
 }
