@@ -546,6 +546,14 @@ sub help
 		PrintHelp('-m','--matchmax','Takes a parameter in the form: [REGEXP]=COUNT. [REGEXP] will be matched against all URLs, and SWEC will never test more than COUNT URLs that matches [REGEXP]');
 		PrintHelp('','--validate','Takes a FILE argument. Validate the syntax of the SDF file supplied');
 		PrintHelp('','--parsedump','Takes a FILE argument. Load the SDF file supplied and dump the parsed data structure to STDOUT. Useful for debugging problems with regular expressions, or simply to see how SWEC sees your SDF file');
+		if(InPath('perldoc'))
+		{
+			print "\nFor more complete documentation, run: perldoc $0\n";
+		}
+		elsif(InPath('man'))
+		{
+			print "\nFor more complete documentation, run: man swec\n";
+		}
 	}
 	exit(0);
 }
@@ -638,6 +646,13 @@ sub setupUAString
 	my @UNAME = uname();
 	my $name = $UNAME[0] eq 'Linux' ? 'GNU/Linux' : $UNAME[0];
 	$BaseUA =~ s/%OS%/$name/g;
+}
+
+# Purpose: Check for a file in path
+# Usage: InPath(FILE)
+sub InPath
+{
+	foreach (split /:/, $ENV{PATH}) { if (-x "$_/@_" and not -d "$_/@_" ) {	return 1; } } return 0;
 }
 
 # Purpose: Initialize LWP
