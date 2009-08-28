@@ -1961,20 +1961,31 @@ can be absolute paths, with the domain name, or relative paths (ie. like
 
 =item B<-p, --softpagelimit>
 
-Change the soft page limit, the max amount
-of pages of any link type to request, this may be exceeded but SWEC
-will try not to (default: 20).
+Change the soft page limit, the max amount of pages of any link type to
+request, this may be exceeded but SWEC will try not to (default: 20).
+
+A link type is a complete path without its arguments. So /files/list
+is a link type, and /files/list?file_id=1 would be one of the pages
+of that link type. With a soft page limit of 20, SWEC will attempt
+to not request more than 20 instances of /files/list with varying
+parameters.
 
 =item B<-h, --hardpagelimit>
 
-Change the hard page limit, the max amount of pages of any link type to request, this should never be exceeded
-(default: 30).
+Change the hard page limit, the max amount of pages of any link type to
+request, this should never be exceeded (default: 30).
+
+See the documentation for --softpagelimit for a definition about what
+SWEC considers a link type.
 
 =item B<-e, --harderrorlimit>
 
 Change the hard error page limit, the max amount of pages of any link type
 to request before deciding that all pages of that type will return errors
 (and thus not request any more) (default: 5)
+
+See the documentation for --softpagelimit for a definition about what
+SWEC considers a link type.
 
 =item B<-m, --matchmax>
 
