@@ -14,6 +14,10 @@ SWEC 0.4
 	numbers and the URLs was not supplied as explicit seeds, but alone
 	on the command-line.
 - Added basic automated tests for SWEC
+- --softpagelimit and --hardpagelimit has been deprecated, and they now
+	default to no value. The options will be removed in 0.5. The old
+	default was equivalent to --softpagelimit 20 --hardpagelimit 30.
+	--harderrorlimit is unaffacted by this change and is not deprecated.
 
 SWEC 0.3
 --------

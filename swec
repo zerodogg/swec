@@ -83,8 +83,8 @@ my @PageSeeds;
 # -- Core settings, and their defaults --
 my %settings = (
 	SDFFile => undef,		# String, path to an SDF file (XXX: not in use)
-	HardMax => 30,			# Int, the hard max number of pages to fetch for each page type
-	SoftMax => 20,			# Int, the soft max number of pages to fetch for each page type
+	HardMax => undef,			# Int, the hard max number of pages to fetch for each page type
+	SoftMax => undef,			# Int, the soft max number of pages to fetch for each page type
 	HardErrorMax => 5,		# Int, the hard number of max errors that can occur on a page type before we
 							#  assume all pages of that type has errors.
 	skipHEAD => false,		# Boolean, true if we should skip the HEAD requests
@@ -192,8 +192,18 @@ GetOptions
 	},
 	'b|baseurl|baseuri=s' => \$baseURI,
 	'l|log=s' => \$logfile,
-	'p|softpagelimit=i' => \$settings{SoftMax},
-	'h|hardpagelimit=i' => \$settings{HardMax},
+	'p|softpagelimit=i' => sub
+	{
+		shift; my $limit = shift;
+		$settings{SoftMax} = $limit;
+		warn("Warning: --softpagelimit/-p has been deprecated as of SWEC 0.4 and will\nbe removed in SWEC 0.5. You are adviced to switch to using --matchmax.\n\n");
+	},
+	'h|hardpagelimit=i' => sub
+	{
+		shift; my $limit = shift;
+		$settings{HardMax} = $limit;
+		warn("Warning: --hardpagelimit/-h has been deprecated as of SWEC 0.4 and will\nbe removed in SWEC 0.5. You are adviced to switch to using --matchmax.\n\n");
+	},
 	'e|harderrorlimit=i' => \$settings{HardErrorMax},
 	'parsedump=s' => sub {
 		shift;
@@ -540,8 +550,6 @@ sub help
 	if ($all)
 	{
 		PrintHelp('','--checksub','Allow SWEC to follow and check links to subdomains of the --baseurl');
-		PrintHelp('-p','--softpagelimit','Change the soft page limit, the max amount of pages of any link type to request, this may be exceeded but swec will try not to (default: 20).');
-		PrintHelp('-h','--hardpagelimit','Change the hard page limit, the max amount of pages of any link type to request, this should never be exceeded (default: 30).');
 		PrintHelp('-e','--harderrorlimit','Change the hard error page limit, the max amount of pages of any link type to request before deciding that all pages of that type will return errors (and thus not request any more) (default: 5)');
 		PrintHelp('-m','--matchmax','Takes a parameter in the form: [REGEXP]=COUNT. [REGEXP] will be matched against all URLs, and SWEC will never test more than COUNT URLs that matches [REGEXP]');
 		PrintHelp('','--validate','Takes a FILE argument. Validate the syntax of the SDF file supplied');
@@ -905,7 +913,7 @@ sub ExtractLinks
 		$href =~ s#^(https?):/([^/]+)/?#$1://$2/#g;
 		my $base = getBaseURL($href);
 		# Don't fetch a page that has had errors more than $settings{HardErrorMax} times and don't fetch any page more than $settings{SoftMax} times.
-		if ((defined $ErrorCount{$base} && $ErrorCount{$base} > $settings{HardErrorMax}) or (defined $PageCount{$base} && $PageCount{$base} > $settings{SoftMax}))
+		if ((defined $ErrorCount{$base} && $ErrorCount{$base} > $settings{HardErrorMax}) or (defined $PageCount{$base} && defined $settings{SoftMax} && $PageCount{$base} > $settings{SoftMax}))
 		{
 			next;
 		}
@@ -1085,7 +1093,7 @@ sub FetchLink
 	}
 	my $base = getBaseURL($URL);
 	$PageCount{$base}++;
-	if ($PageCount{$base} >= $settings{HardMax})
+	if (defined $settings{HardMax} && $PageCount{$base} >= $settings{HardMax})
 	{
 		delete($source->{$URL});
 		return;
@@ -1976,21 +1984,26 @@ can be absolute paths, with the domain name, or relative paths (ie. like
 
 =item B<-p, --softpagelimit>
 
+Note: This option has been deprecated as of SWEC 0.4 and will be removed in
+SWEC 0.5. You are adviced to use combinations of --matchmax parameters
+instead.
+
 Change the soft page limit, the max amount of pages of any link type to
 request, this may be exceeded but SWEC will try not to (default: 20).
 
-A link type is a complete path without its arguments. So /files/list
-is a link type, and /files/list?file_id=1 would be one of the pages
-of that link type. With a soft page limit of 20, SWEC will attempt
-to not request more than 20 instances of /files/list with varying
-parameters.
+See the documentation for --harderrorlimit for a definition about what
+SWEC considers a link type.
 
 =item B<-h, --hardpagelimit>
+
+Note: This option has been deprecated as of SWEC 0.4 and will be removed in
+SWEC 0.5. You are adviced to use combinations of --matchmax parameters
+instead.
 
 Change the hard page limit, the max amount of pages of any link type to
 request, this should never be exceeded (default: 30).
 
-See the documentation for --softpagelimit for a definition about what
+See the documentation for --harderrorlimit for a definition about what
 SWEC considers a link type.
 
 =item B<-e, --harderrorlimit>
@@ -1999,8 +2012,11 @@ Change the hard error page limit, the max amount of pages of any link type
 to request before deciding that all pages of that type will return errors
 (and thus not request any more) (default: 5)
 
-See the documentation for --softpagelimit for a definition about what
-SWEC considers a link type.
+A link type is a complete path without its arguments. So /files/list
+is a link type, and /files/list?file_id=1 would be one of the pages
+of that link type. With a soft page limit of 20, SWEC will attempt
+to not request more than 20 instances of /files/list with varying
+parameters.
 
 =item B<-m, --matchmax>
 
