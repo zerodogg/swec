@@ -198,9 +198,19 @@ GetOptions
 		$settings{SoftMax} = $limit;
 		warn("Warning: --softpagelimit/-p has been deprecated as of SWEC 0.4 and will\nbe removed in SWEC 0.5. You are adviced to switch to using --matchmax.\n\n");
 	},
-	'h|hardpagelimit=i' => sub
+	'hardpagelimit=i' => sub
 	{
 		shift; my $limit = shift;
+		$settings{HardMax} = $limit;
+		warn("Warning: --hardpagelimit/-h has been deprecated as of SWEC 0.4 and will\nbe removed in SWEC 0.5. You are adviced to switch to using --matchmax.\n\n");
+	},
+	'h:s' => sub
+	{
+		shift; my $limit = shift;
+		if(not defined $limit or not length $limit or not $limit =~ /\d/)
+		{
+			swecDie("Option -h (--hardpagelimit, which is deprecated) takes a parameter. Maybe you wanted --help?\n");
+		}
 		$settings{HardMax} = $limit;
 		warn("Warning: --hardpagelimit/-h has been deprecated as of SWEC 0.4 and will\nbe removed in SWEC 0.5. You are adviced to switch to using --matchmax.\n\n");
 	},
@@ -2358,7 +2368,7 @@ If you find a bug, please report it at L<http://random.zerodogg.org/swec/bugs>
 
 =over
 
-=item Previous versions returns 0 even if some tests failed.
+=item SWEC 0.2 and older returned 0 even if some tests failed.
 
 =item SWEC 0.3 and older can not load SDFv2 test files.
 
