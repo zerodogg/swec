@@ -1,3 +1,9 @@
+SWEC 0.4.1
+----------
+- Fixed a bug that could cause SWEC to crash if a server went offline during
+	testing
+
+
 SWEC 0.4
 ----------
 - Smarter seed/baseurl parsing. SWEC now lets you specify seeds before the

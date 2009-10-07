@@ -43,7 +43,7 @@ $SIG{INT} = \&ErrorReport;
 $SIG{TERM} = \&ErrorReport;
 
 # The version number
-my $VERSION = '0.4';
+my $VERSION = '0.4.1';
 # The base URI
 my $baseURI;
 # The same in regex
@@ -1163,6 +1163,13 @@ sub FetchLink
 	}
 	# Fetch the document
 	$c = LWP_Request('get',$URL);
+
+	if(not $c)
+	{
+		print "giving up\n";
+		AddError($URL,'Connection error','SWEC_INT_CONNERR',true);
+		return;
+	}
 
 	if ($c->is_error and not @realError)
 	{
