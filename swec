@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # swec - Simple Web Error Checker
-# Copyright (C) Eskild Hustvedt 2008, 2009
+# Copyright (C) Eskild Hustvedt 2008, 2009, 2010
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ $SIG{INT} = \&ErrorReport;
 $SIG{TERM} = \&ErrorReport;
 
 # The version number
-my $VERSION = '0.4.1';
+my $VERSION = '0.5';
 # The base URI
 my $baseURI;
 # The same in regex
@@ -78,6 +78,8 @@ my @URLSortedChecks;
 my @LoadedSDF;
 # List of page seeds
 my @PageSeeds;
+# List of page seeds to POST to
+my @PageSeedsPost;
 
 
 # -- Core settings, and their defaults --
@@ -162,6 +164,7 @@ GetOptions
 		my $u = shift;
 		push(@PageSeeds,$u);
 	},
+	'postseed=s{2}' => \@PageSeedsPost,
 	'm|matchmax=s' => sub {
 		shift;
 		my $match = shift;
@@ -301,7 +304,14 @@ sub main
 	# We've begun processing, so now errors should be shown
 	$hasRunErrorRep = false;
 
-	# First fetch the seeds
+	# First fetch the post seeds
+	if (@PageSeedsPost)
+	{
+		initPageSeedsPost();
+		FetchLinks(\@PageSeedsPost,true)
+	}
+
+	# Then fetch the normal seeds
 	FetchLinks(\@PageSeeds);
 
 	# Load data from the session if we have one
@@ -334,22 +344,70 @@ sub prepareSeeds
 	my @newSeeds;
 	foreach my $u (@PageSeeds)
 	{
-		if(not $u =~ /^http/)
+		my $seed = getFullSeedURL($u);
+		if(not $seed)
 		{
-			if ($baseURI)
-			{
-				$u = $baseURI.'/'.$u;
-				$u =~ s#/+#/#g;
-				$u =~ s#^(https?):/#$1://#g;
-			}
-			else
-			{
-				swecDie(10,"--urlseed '$u' does not contain http:// and no --baseurl was found..\n");
-			}
+			swecDie(10,"--urlseed '$u' does not contain http:// and no --baseurl was found..\n");
 		}
-		push(@newSeeds,$u);
+
+		push(@newSeeds,$seed);
 	}
 	@PageSeeds = @newSeeds;
+}
+
+# Purpose: Initialize a single seed
+# Usage: $u = getFullSeedURL();
+sub getFullSeedURL
+{
+	my $url = shift;
+	if(not $url =~ /^http/)
+	{
+		if ($baseURI)
+		{
+			$url = $baseURI.'/'.$url;
+			$url =~ s#/+#/#g;
+			$url =~ s#^(https?):/#$1://#g;
+		}
+		else
+		{
+			$url = undef;
+		}
+	}
+	return $url;
+}
+
+# Purpose: Initialize PageSeedsPost
+# Usage: initPageSeedsPost();
+sub initPageSeedsPost
+{
+	my @result;
+	for(my $i = 0; $i < @PageSeedsPost; $i++)
+	{
+		my $u = $PageSeedsPost[$i];
+		my $url = getFullSeedURL($u);
+		if(not $url)
+		{
+			swecDie(10,"--urlseed '$u' does not contain http:// and no --baseurl was found..\n");
+		}
+		$i++;
+		my $data = $PageSeedsPost[$i];
+		my $resultingData = {};
+
+		foreach my $l (split(/\&/,$data))
+		{
+			my $key = $l;
+			my $value = $l;
+			$key =~ s/^([^=]+)=.*/$1/;
+			$value =~ s/^[^=]+=(.*)/$1/;
+			if ($key eq $l or $value eq $l)
+			{
+				swecDie(10,"Failed to parse data pair for --postseed $url: \"$l\"");
+			}
+			$resultingData->{$key} = $value;
+		}
+		push(@result,$url,$resultingData);
+	}
+	@PageSeedsPost = @result;
 }
 
 # Purpose: Initialize the base URI
@@ -559,6 +617,7 @@ sub help
 	PrintHelp('','--keepgoing','Parse a page for links even if it contained errors');
 	if ($all)
 	{
+		PrintHelp('','--postseed','Works like --urlseed but takes a second parameter; a string of key-value pairs that will be POSTed. See the manpage for more information.');
 		PrintHelp('','--checksub','Allow SWEC to follow and check links to subdomains of the --baseurl');
 		PrintHelp('-e','--harderrorlimit','Change the hard error page limit, the max amount of pages of any link type to request before deciding that all pages of that type will return errors (and thus not request any more) (default: 5)');
 		PrintHelp('-m','--matchmax','Takes a parameter in the form: [REGEXP]=COUNT. [REGEXP] will be matched against all URLs, and SWEC will never test more than COUNT URLs that matches [REGEXP]');
@@ -692,7 +751,7 @@ sub InitLWP
 # type is either head or get
 sub LWP_Request
 {
-    my($type,$URL) = @_;
+    my($type,$URL,$postData) = @_;
     my $r;
 	my $success = 0;
     for(my $l = 0; $l < 3; $l++)
@@ -714,6 +773,10 @@ sub LWP_Request
         {
             $r = $UA->get($URL);
         }
+		elsif($type eq 'post')
+		{
+            $r = $UA->post($URL,$postData);
+		}
         else
         {
             swecDie(9,"LWP_Request(): unknown type: $type");
@@ -1066,19 +1129,28 @@ sub addMatchMax
 sub FetchLinks
 {
 	my $source = shift;
+	my $postEnabled = shift;
 	if (ref($source) eq 'ARRAY')
 	{
 		# We need a hash for FetchLink
 		my $fakeSource = {};
-		foreach my $URL (@{$source})
+		for(my $i = 0; $i < scalar(@{$source}); $i++)
 		{
+			my $URL = $source->[$i];
+			my $postData;
+			if ($postEnabled)
+			{
+				$i++;
+				$postData = $source->[$i];
+			}
 			$fakeSource->{$URL} = 'seed';
 			$wasPageSeed{$URL} = true;
-			FetchLink($URL,$fakeSource);
+			FetchLink($URL,$fakeSource,$postData);
 		}
 	}
 	elsif(ref($source) eq 'HASH')
 	{
+		swecDie(9,'Fatal: FetchLinks got hashref in postEnabled mode') if $postEnabled;
 		foreach my $URL(sort keys %{$source})
 		{
 			FetchLink($URL,$source);
@@ -1096,6 +1168,8 @@ sub FetchLink
 {
 	my $URL = shift;
 	my $source = shift;
+	my $postData = shift;
+	# XXX: Check if shouldCheckURL needs special handling for postData
 	if (not shouldCheckURL($URL))
 	{
 		delete($source->{$URL});
@@ -1162,7 +1236,14 @@ sub FetchLink
 		}
 	}
 	# Fetch the document
-	$c = LWP_Request('get',$URL);
+	if ($postData)
+	{
+		$c = LWP_Request('post',$URL,$postData);
+	}
+	else
+	{
+		$c = LWP_Request('get',$URL);
+	}
 
 	if(not $c)
 	{
@@ -1999,6 +2080,20 @@ the URLs are checked in the order supplied on the commandline. These
 can be absolute paths, with the domain name, or relative paths (ie. like
 /index.html).
 
+=item B<--postseed> I<URL> I<DATA PAIR>
+
+This works like --urlseed (and the URL parameter is identical to that of
+--urlseed), but it also takes a second DATA PAIR parameter. This data pair
+is a simple string of key-values in the form:
+
+	user=123&password=321&_form=login
+
+The string should not be URI-encoded, SWEC will handle that.
+You can use this to allow SWEC to log into sites that only accept POSTed
+login data, or to test specific pages.
+
+Note that all --postseed URLs are checked before any --urlseed URLs.
+
 =item B<-p, --softpagelimit>
 
 Note: This option has been deprecated as of SWEC 0.4 and will be removed in
@@ -2427,7 +2522,7 @@ SWEC was written by Eskild Hustvedt I<<eskild at the domain zerodogg dot org>>
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright (C) Eskild Hustvedt 2008, 2009
+Copyright (C) Eskild Hustvedt 2008, 2009, 2010
 
 This is free software; see the source for copying conditions.  There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
