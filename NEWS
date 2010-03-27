@@ -2,12 +2,12 @@ SWEC 0.5
 ----------
 - Added --postseed, allows testing of URLs that need POSTed data, as well as
 	logging into sites that only accept POSTed login credentials.
+- Removed the deprecated --hardpagelimit and --softpagelimit parameters
 
 SWEC 0.4.1
 ----------
 - Fixed a bug that could cause SWEC to crash if a server went offline during
 	testing
-
 
 SWEC 0.4
 ----------

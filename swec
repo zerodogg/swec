@@ -85,8 +85,6 @@ my @PageSeedsPost;
 # -- Core settings, and their defaults --
 my %settings = (
 	SDFFile => undef,		# String, path to an SDF file (XXX: not in use)
-	HardMax => undef,			# Int, the hard max number of pages to fetch for each page type
-	SoftMax => undef,			# Int, the soft max number of pages to fetch for each page type
 	HardErrorMax => 5,		# Int, the hard number of max errors that can occur on a page type before we
 							#  assume all pages of that type has errors.
 	skipHEAD => false,		# Boolean, true if we should skip the HEAD requests
@@ -195,28 +193,6 @@ GetOptions
 	},
 	'b|baseurl|baseuri=s' => \$baseURI,
 	'l|log=s' => \$logfile,
-	'p|softpagelimit=i' => sub
-	{
-		shift; my $limit = shift;
-		$settings{SoftMax} = $limit;
-		warn("Warning: --softpagelimit/-p has been deprecated as of SWEC 0.4 and will\nbe removed in SWEC 0.5. You are adviced to switch to using --matchmax.\n\n");
-	},
-	'hardpagelimit=i' => sub
-	{
-		shift; my $limit = shift;
-		$settings{HardMax} = $limit;
-		warn("Warning: --hardpagelimit/-h has been deprecated as of SWEC 0.4 and will\nbe removed in SWEC 0.5. You are adviced to switch to using --matchmax.\n\n");
-	},
-	'h:s' => sub
-	{
-		shift; my $limit = shift;
-		if(not defined $limit or not length $limit or not $limit =~ /\d/)
-		{
-			swecDie("Option -h (--hardpagelimit, which is deprecated) takes a parameter. Maybe you wanted --help?\n");
-		}
-		$settings{HardMax} = $limit;
-		warn("Warning: --hardpagelimit/-h has been deprecated as of SWEC 0.4 and will\nbe removed in SWEC 0.5. You are adviced to switch to using --matchmax.\n\n");
-	},
 	'e|harderrorlimit=i' => \$settings{HardErrorMax},
 	'parsedump=s' => sub {
 		shift;
@@ -254,7 +230,7 @@ GetOptions
 	'onlynew' => sub {
 		$settings{OnlyNewErrors} = true,
 	},
-	'help' => sub { help(); },
+	'h|help' => sub { help(); },
 	'help-all' => sub { help(1) },
 	'version' => sub { print "SWEC version $VERSION\n"; exit 0; },
 ) or exit(10);
@@ -865,8 +841,6 @@ sub ErrorReport
 		appendToSession('logfile',$logfile);
 		appendToSession('pageSeeds',\@PageSeeds);
 		appendToSession('HasRun',\%HasRun);
-		appendToSession('HardMax',$settings{HardMax});
-		appendToSession('SoftMax',$settings{SoftMax});
 		appendToSession('HardErrorMax',$settings{HardErrorMax});
 		appendToSession('BaseUA',$BaseUA);
 		appendToSession('GiveMeUA',$GiveMeUA);
@@ -985,8 +959,8 @@ sub ExtractLinks
 		$href =~ s#/+#/#g;
 		$href =~ s#^(https?):/([^/]+)/?#$1://$2/#g;
 		my $base = getBaseURL($href);
-		# Don't fetch a page that has had errors more than $settings{HardErrorMax} times and don't fetch any page more than $settings{SoftMax} times.
-		if ((defined $ErrorCount{$base} && $ErrorCount{$base} > $settings{HardErrorMax}) or (defined $PageCount{$base} && defined $settings{SoftMax} && $PageCount{$base} > $settings{SoftMax}))
+		# Don't fetch a page that has had errors more than $settings{HardErrorMax} times
+		if (defined $ErrorCount{$base} && $ErrorCount{$base} > $settings{HardErrorMax})
 		{
 			next;
 		}
@@ -1177,11 +1151,6 @@ sub FetchLink
 	}
 	my $base = getBaseURL($URL);
 	$PageCount{$base}++;
-	if (defined $settings{HardMax} && $PageCount{$base} >= $settings{HardMax})
-	{
-		delete($source->{$URL});
-		return;
-	}
 
 	# Generate a pretty URL for printing
 	my $prettyURL = $URL;
@@ -2093,30 +2062,6 @@ You can use this to allow SWEC to log into sites that only accept POSTed
 login data, or to test specific pages.
 
 Note that all --postseed URLs are checked before any --urlseed URLs.
-
-=item B<-p, --softpagelimit>
-
-Note: This option has been deprecated as of SWEC 0.4 and will be removed in
-SWEC 0.5. You are adviced to use combinations of --matchmax parameters
-instead.
-
-Change the soft page limit, the max amount of pages of any link type to
-request, this may be exceeded but SWEC will try not to (default: 20).
-
-See the documentation for --harderrorlimit for a definition about what
-SWEC considers a link type.
-
-=item B<-h, --hardpagelimit>
-
-Note: This option has been deprecated as of SWEC 0.4 and will be removed in
-SWEC 0.5. You are adviced to use combinations of --matchmax parameters
-instead.
-
-Change the hard page limit, the max amount of pages of any link type to
-request, this should never be exceeded (default: 30).
-
-See the documentation for --harderrorlimit for a definition about what
-SWEC considers a link type.
 
 =item B<-e, --harderrorlimit>
 
