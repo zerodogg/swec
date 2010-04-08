@@ -58,6 +58,8 @@ my $BaseUA = 'SWEC/'.$VERSION.' (%OS%; Simple Web Error Checker/LWP; spider/craw
 my $GiveMeUA = 'Mozilla/5.0 Firefox/Gecko';
 # The logfile
 my $logfile;
+# Debug logging level
+my $debugLog = 0;
 # The regex of filenames to ignore
 my $ignoreregex = '\.(png|exe|run|gif|pdf|phps|deb|rpm|bin|jpe?g|css|bz2|gz|tar|tgz|zip|rar|odt|odp|doc|psp|swf|js|patch|vim)';
 # The session hashref, if we have a session
@@ -80,6 +82,8 @@ my @LoadedSDF;
 my @PageSeeds;
 # List of page seeds to POST to
 my @PageSeedsPost;
+# Logged messages, pushed to by toLog()
+my @loggedMessages;
 
 
 # -- Core settings, and their defaults --
@@ -193,6 +197,7 @@ GetOptions
 	},
 	'b|baseurl|baseuri=s' => \$baseURI,
 	'l|log=s' => \$logfile,
+    'debuglog+' => \$debugLog,
 	'e|harderrorlimit=i' => \$settings{HardErrorMax},
 	'parsedump=s' => sub {
 		shift;
@@ -751,6 +756,7 @@ sub LWP_Request
         }
 		elsif($type eq 'post')
 		{
+            printd(2,'Posting '.Dumper($postData).' to '.$URL) if $debugLog;
             $r = $UA->post($URL,$postData);
 		}
         else
@@ -856,6 +862,11 @@ sub ErrorReport
 	{
 		open (my $rf,'>',$logfile) or swecDie(10,'Failed to open '.$logfile.' for writing: '.$!);
 		print {$rf} $rep;
+        if (@loggedMessages)
+        {
+            print {$rf} "Log messages:\n";
+            print {$rf} join("\n",@loggedMessages);
+        }
 		print {$rf} "\n\nDumps:\n";
 		print {$rf} 'Used UA: '. $BaseUA.$GiveMeUA ."\n";
 		print {$rf} "HasRun:\n".swecDumper(\%HasRun);
@@ -1015,6 +1026,7 @@ sub AddError
 	my $error = shift;
 	my $test = shift;
 	my $silent = shift;
+    printd(2,'Adding error: '.$error.' on test '.$test.' for URL '.$URL) if $debugLog;
 	if ($IgnoreChecks{$test})
 	{
 		if(not $silent)
@@ -1234,6 +1246,8 @@ sub FetchLink
 	# Prepare it for a lot of regular expressions
 	study($content);
 
+    printd(3,'Content of page at URL '.$URL.': '.$content) if $debugLog;
+
 	if(not defined $content or $len == 0)
 	{
 		if (@realError)
@@ -1249,6 +1263,7 @@ sub FetchLink
 
 	foreach my $en (@DefaultSortedChecks)
 	{
+        printd(2,'Running check '.$en.' on URL '.$URL) if $debugLog;
 		# Get a ref to the hash
 		my $ec = $Checks{$en};
 		# Regex check
@@ -1261,6 +1276,7 @@ sub FetchLink
 					$err = $ec->{error};
 					last;
 				}
+                printd(2,$URL.' did not match '.$regex) if $debugLog;
 			}
 		}
 		# Minlength check
@@ -1290,6 +1306,7 @@ sub FetchLink
 	}
 	if(not $err)
 	{
+        printd(2,'No errors for '.$URL) if $debugLog;
 		if (@realError)
 		{
 			AddError(@realError);
@@ -1596,7 +1613,7 @@ sub LoadSDF
 {
 	my $file = shift;
 	my $Data = shift;
-	printd("Loading SDF: $file");
+	printd(1,"Loading SDF: $file") if $debugLog;
 	if(not $Data)
 	{
 		$Data = {};
@@ -1621,7 +1638,7 @@ sub LoadSDF
 			{
 				($currnam = $_) =~ s/(\[|\]|\-)*//g;
 				$IgnoreChecks{$currnam} = true;
-				printd("Added $currnam to the ignore list");
+				printd(1,"Added $currnam to the ignore list") if $debugLog;
 				# We don't currently have a valid section.
 				$currnam = undef;
 			}
@@ -1739,7 +1756,7 @@ sub LoadSDFv2
 {
 	my $file = shift;
 	my $Data = shift;
-	printd("Loading SDF: $file");
+	printd(1,"Loading SDF: $file") if $debugLog;
 	if(not $Data)
 	{
 		$Data = {};
@@ -1766,7 +1783,7 @@ sub LoadSDFv2
 			{
 				($currnam = $_) =~ s/(\[|\]|\-)*//g;
 				$IgnoreChecks{$currnam} = true;
-				printd("Added $currnam to the ignore list");
+				printd(1,"Added $currnam to the ignore list") if $debugLog;
 				# We don't currently have a valid section.
 				$currnam = undef;
 			}
@@ -1946,11 +1963,23 @@ sub GenerateSDFCache
 	}
 }
 
+sub toLog
+{
+    my $message = shift;
+    push(@loggedMessages,$message);
+}
+
 # Purpose: Print debugging info
 # Usage: printd(INFO);
 sub printd
 {
-	return;
+    my $level = shift;
+    if ($level > $debugLog)
+    {
+        return;
+    }
+    my $msg = shift;
+    toLog($msg);
 }
 
 # Including END so that in the case that there's a bug, ErrorReport will still be run.
