@@ -4,3 +4,6 @@ TODO list for SWEC in no particular order:
 - More checks
 - Support for running each page through the W3C HTML validator
 - Support for running as a linkchecker, making sure all links, CSS files and images exist
+- Add an S modifier to the regex test, replaces some characters (:,- at least)
+    with the /s regex (but with * instead of +). Should make ie. the test for
+    SWEC_PHP_SYNTAX more readable
