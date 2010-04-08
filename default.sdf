@@ -197,8 +197,8 @@ sortindex = 50
 [SWEC_PHP_SYNTAX]
 source = body
 type = regex/si
-check = Parse error: syntax error.*php
-check = Parse error: syntax error.*on line
+check = Parse error(<[^>]+>)?: syntax error.*php
+check = Parse error(<[^>]+>)?: syntax error.*on line
 error = PHP syntax error
 sortindex = 90
 
