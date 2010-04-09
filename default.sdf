@@ -45,6 +45,20 @@ check = (Failed|Unable) to connect to database
 error = Failed to connect to database
 sortindex = 200
 
+[SWEC_CRASHEDTABLE]
+source = body
+type = regex/si
+check = Table \S+ is marked as crashed
+error = Crashed database table
+sortindex = 10
+
+[SWEC_SQL_ERROR]
+source = body
+type = regex/si
+check = SQL Error:
+error = SQL error
+sortindex = 210
+
 [SWEC_FILE_LENGTH]
 source = body
 type = minlength
@@ -183,7 +197,7 @@ sortindex = 10
 [SWEC_PHP_DB]
 source = body
 type = regex/si
-check = (mysql|postgresql|sqlite)_connect
+check = (mysql|postgresql|sqlite)_(connect|query)
 error = Unknown database error
 sortindex = 100
 
