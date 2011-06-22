@@ -1026,6 +1026,12 @@ sub ExtractLinks
 	# Used to ensure we only process unique URLs
 	my %seen;
 
+	# This enables support for the // shortcut (which is short for the protocol
+	# 	used, so either http:// or https://, we extract it from the url supplied)
+	my $baseProto = $url;
+	$baseProto =~ s#^(\w+://).+#$1#;
+	$contents =~ s{href=(["'])//}{href=$1$baseProto}g;
+
 	my $links = getLinksFrom($contents);
 	foreach my $l (@{$links})
 	{
@@ -2197,7 +2203,8 @@ labeled as reverse, then only COUNT number of URLs that does NOT match REGEX).
 All others will be skipped after the URL tests are run (meaning that SWEC will
 not download those pages and will not run any tests on the pages itself).
 
-You can add as many --matchmax parameters as you want.
+You can add as many --matchmax parameters as you want. You can use "=" in the REGEX,
+SWEC knows to only count the last "=" as the separator for the count-expression.
 
 See also --noignore.
 

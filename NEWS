@@ -5,6 +5,7 @@ SWEC 0.5
 - Removed the deprecated --hardpagelimit and --softpagelimit parameters
 - Added support for encoding URI strings with URI::Encode
 - Added --disable-lib to let the user disable use of various optional libs
+- Added support for //-urls
 
 SWEC 0.4.1
 ----------
