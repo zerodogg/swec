@@ -4,6 +4,7 @@ SWEC 0.5
 	logging into sites that only accept POSTed login credentials.
 - Removed the deprecated --hardpagelimit and --softpagelimit parameters
 - Added support for encoding URI strings with URI::Encode
+- Added --disable-lib to let the user disable use of various optional libs
 
 SWEC 0.4.1
 ----------

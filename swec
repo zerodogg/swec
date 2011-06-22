@@ -99,6 +99,7 @@ my %settings = (
 	uriEncode => false,		# Boolean, true if we have URI::Encode
 	checkSubDomains => false,# Boolean, true if we should allow subdomains in the URIRegex
 	noIgnores => false,		# Boolean, true if default --matchmax ignores should not be added
+	disabledLibs => {},     # Hashref of libs that SWEC should not use   
 );
 
 # -- Global hashes --
@@ -235,6 +236,11 @@ GetOptions
 	'lwpget' => \&LWP_CommandlineEmu,
 	'onlynew' => sub {
 		$settings{OnlyNewErrors} = true,
+	},
+	'disable-lib|disablelib=s' => sub {
+		shift;
+		my $lib = shift;
+		$settings{disabledLibs}->{$lib} = true;
 	},
 	'h|help' => sub { help(); },
 	'help-all' => sub { help(1) },
@@ -542,9 +548,13 @@ sub debugInfo
 	setupUAString();
 	printf($fmt,'User agent',$BaseUA.$GiveMeUA);
 	printf($fmt,'Ignore regex',$ignoreregex);
+	if(keys %{$settings{disabledLibs}})
+	{
+		printf($fmt,'Libs disabled by user',join(' ',keys %{$settings{disabledLibs}}));
+	}
 	my $parser;
 	my $uriEncode;
-	if(eval('use HTML::LinkExtractor; 1'))
+	if(tryUse('HTML::LinkExtractor'))
 	{
 		$parser = 'HTML::LinkExtractor';
 		printf($fmt,'HTML::LinkExtractor','available ('.$HTML::LinkExtractor::VERSION.')');
@@ -552,7 +562,7 @@ sub debugInfo
 	else
 	{
 		printf($fmt,'HTML::LinkExtractor','not available');
-		if(eval('use HTML::Entities;1'))
+		if(tryUse('HTML::Entities'))
 		{
 			$parser = 'builtin with HTML::Entities';
 			printf($fmt,'HTML::Entities','available ('.$HTML::Entities::VERSION.')');
@@ -564,7 +574,7 @@ sub debugInfo
 		}
 	}
 	printf($fmt,'Parser',$parser);
-	if (eval('use URI::Encode;1;'))
+	if(tryUse('URI::Encode'))
 	{
 		printf($fmt,'URI::Encode','available ('.$URI::Encode::VERSION.')');
 		$uriEncode = 'URI::Encode';
@@ -572,7 +582,7 @@ sub debugInfo
 	else
 	{
 		printf($fmt,'URI::Encode','not available');
-		$uriEncode = 'Builtin fallback';
+		$uriEncode = '(none)';
 	}
 	printf($fmt,'URI encoder',$uriEncode);
 	exit(0);
@@ -617,6 +627,7 @@ sub help
 		PrintHelp('-m','--matchmax','Takes a parameter in the form: [REGEXP]=COUNT. [REGEXP] will be matched against all URLs, and SWEC will never test more than COUNT URLs that matches [REGEXP]');
 		PrintHelp('','--validate','Takes a FILE argument. Validate the syntax of the SDF file supplied');
 		PrintHelp('','--parsedump','Takes a FILE argument. Load the SDF file supplied and dump the parsed data structure to STDOUT. Useful for debugging problems with regular expressions, or simply to see how SWEC sees your SDF file');
+		PrintHelp('','--disable-lib','Takes a single argument, the library to skip using. See the manpage for details.');
 		if(InPath('perldoc'))
 		{
 			print "\nFor more complete documentation, run: perldoc $0\n";
@@ -933,32 +944,64 @@ sub getLinksFrom
 	}
 }
 
+# Purpose: Try using the lib supplied, returning 1 on success 0 on failure
+# Usage: tryUse('Some::lib qw(something)');
+sub tryUse
+{
+	my $lib = shift;
+	my $check = $lib;
+	$check =~ s/\s+.+//;
+	if (!$settings{disabledLibs}->{$lib} && eval('use '.$lib.';1;'))
+	{
+		return 1;
+	}
+	return 0;
+}
+
 # Purpose: Initialize the link extractor and URI encoder
 # Usage: initOptionalLibs();
 sub initOptionalLibs
 {
-	if(eval('use HTML::LinkExtractor;1;'))
+	if(tryUse('HTML::LinkExtractor'))
 	{
 		$EX = HTML::LinkExtractor->new();
 	}
 	else
 	{
-		if (eval('use HTML::Entities qw(decode_entities);1'))
+		if ($settings{disabledLibs}->{'HTML::LinkExtractor'})
+		{
+			warn("Note: Use of HTML::LinkExtractor disabled\n");
+		}
+		if(tryUse('HTML::Entities qw(decode_entities)'))
 		{
 			$settings{htmlInfo} = true;
 		}
 		else
 		{
-			warn("Warning: HTML::Entities missing, falling back to (less reliable) alternate entitiy parsing\n");
+			if ($settings{disabledLibs}->{'HTML::LinkExtractor'})
+			{
+				warn("Warning: Use of HTML::Entities disabled, will use (less reliable) alternate entity parsing\n");
+			}
+			else
+			{
+				warn("Warning: HTML::Entities missing, falling back to (less reliable) alternate entitiy parsing\n");
+			}
 		}
 	}
-	if (eval('use URI::Encode qw(uri_encode);1;'))
+	if(tryUse('URI::Encode qw(uri_encode)'))
 	{
 		$settings{uriEncode} = true;
 	}
 	else
 	{
-		warn("Warning: URI::Encode missing, URIs will be submitted unencoded");
+		if ($settings{disabledLibs}->{'URI::Encode'})
+		{
+			warn("Warning: Use of URI::Encode disabled, URIs will be submitted unencoded\n");
+		}
+		else
+		{
+			warn("Warning: URI::Encode missing, URIs will be submitted unencoded\n");
+		}
 	}
 }
 
@@ -967,8 +1010,11 @@ sub initOptionalLibs
 sub encodeURI
 {
 	my $uri = shift;
-	return $uri if not $settings{uriEncode};
-	return encode_uri($uri);
+	if ($settings{uriEncode})
+	{
+		return uri_encode($uri);
+	}
+	return $uri;
 }
 
 # Purpose: Extract links from a page and insert them into %CurrLinks
@@ -2240,6 +2286,17 @@ the added benifit of cookies, which means that you can supply a login URL first
 to examine how a request would be responded to after login. This is particulary
 useful to examine JSON or XML replies, or to check if the headers being replied
 are set properly.
+
+=item B<--disable-lib> LIB
+
+Using this parameter you can disable the various optional libs that SWEC uses.
+During normal use you won't have to do this, however it can be used if you hit
+problems related to these libraries. The following libraries can be toggled
+off using --disable-lib: HTML::LinkExtractor, HTML::Entities, URI::Encode
+
+You can supply --disable-lib as many times as you want to disable use of
+multiple libraries. Note that when using --disable-lib along with --debuginfo
+you must supply all --disable-lib parameters before --debuginfo.
 
 =item B<--debuginfo>
 
