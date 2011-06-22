@@ -6,6 +6,7 @@ SWEC 0.5
 - Added support for encoding URI strings with URI::Encode
 - Added --disable-lib to let the user disable use of various optional libs
 - Added support for //-urls
+- Updated user agent strings, added --chrome and --android
 
 SWEC 0.4.1
 ----------

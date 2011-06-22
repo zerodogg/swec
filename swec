@@ -55,7 +55,7 @@ my $hasRunErrorRep = true;
 # The base user agent string
 my $BaseUA = 'SWEC/'.$VERSION.' (%OS%; Simple Web Error Checker/LWP; spider/crawler) giveme ';
 # Appended to the user agent, can be changed with commandline options
-my $GiveMeUA = 'Mozilla/5.0 Firefox/Gecko';
+my $GiveMeUA = 'Mozilla/5.0 Firefox Gecko';
 # The logfile
 my $logfile;
 # Debug logging level
@@ -146,15 +146,23 @@ help() if not @ARGV;
 GetOptions
 (
 	'ie' => sub {
-		$GiveMeUA = 'MSIE/Internet Explorer';
+		$GiveMeUA = 'Mozilla/5.0 MSIE Trident';
 	},
 	'opera' => sub {
-		$GiveMeUA = 'Opera';
+		$GiveMeUA = 'Opera Presto';
+	},
+	'chrome' => sub
+	{
+		$GiveMeUA = 'Mozilla/5.0 AppleWebKit (KHTML, like Gecko) Chrome Safari';
+	},
+	'android' => sub
+	{
+		$GiveMeUA = 'Mozilla/5.0 Android AppleWebKit (KHTML, like Gecko) Mobile Safari';
 	},
 	'ua=s' => sub {
 		shift;
 		$BaseUA = shift;
-		$GiveMeUA = ' (swec - Simple Web Error Checker-perl/LWP)';
+		$GiveMeUA = ' (SWEC - Simple Web Error Checker-perl/LWP; spider/crawler)';
 	},
 	'session=s' => \$session_file,
 	'i|sessnam=s' => sub {
@@ -607,8 +615,10 @@ sub help
 		PrintHelp('','--help','Print this help screen');
 		PrintHelp('','--help-all','Print an extended help screen with advanced options');
 	}
-	PrintHelp('','--ie','Pretend to be IE (default: firefox)');
-	PrintHelp('','--opera','Pretend to be Opera (default: firefox)');
+	PrintHelp('','--ie','Pretend to be IE (default: Firefox)');
+	PrintHelp('','--opera','Pretend to be Opera (default: Firefox)');
+	PrintHelp('','--chrome','Pretend to be Google Chrome (default: Firefox)');
+	PrintHelp('','--android','Pretend to be an Android phone (default: Firefox)');
 	PrintHelp('','--ua','Manually specify user agent string');
 	PrintHelp('-b','--baseurl','The base URL. Will only check URLs matching it and will use it as the domain/url for pages that have relative paths');
 	PrintHelp('-s','--urlseed','The URL seed, the first URL to check. Can be supplied multiple times, order does not matter. Supply -b before -s in order to be able to supply relative paths');
@@ -2127,11 +2137,13 @@ Print a help screen with all options
 
 Print version information and exit
 
-=item B<--ie, --opera>
+=item B<--ie, --opera, --chrome, --android>
 
-Pretend (somewhat) to be IE or Opera. The default is to pretend (somewhat) to
-be Firefox. To see the entire user-agent string, run swec with the --debuginfo
-parameter at the end (ie. after any user-agent altering parameters).
+Pretend (somewhat) to be IE, Opera, Google Chrome or the Android browser. The
+default is to pretend (somewhat) to be Firefox. To see the entire user-agent
+string, run swec with the --debuginfo parameter at the end (ie. after any
+user-agent altering parameters). Chrome pretends to be Safari, so it doubles as
+that (and should do the same for any other webkit/KHTML-based browser).
 
 =item B<--ua> USERAGENT
 
