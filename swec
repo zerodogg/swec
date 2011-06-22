@@ -96,6 +96,7 @@ my %settings = (
 	OnlyNewErrors => false,	# Boolean, true if we should only print information about new errors
 	keepGoing => false,		# Boolean, true if we should just keep on parsing links from pages with errors
 	htmlInfo => false,		# Boolean, true if we don't have HTML::LinkExtractor but have HTML::Entities
+	uriEncode => false,		# Boolean, true if we have URI::Encode
 	checkSubDomains => false,# Boolean, true if we should allow subdomains in the URIRegex
 	noIgnores => false,		# Boolean, true if default --matchmax ignores should not be added
 );
@@ -265,8 +266,8 @@ sub main
 	AutoLoadSDF();
 	# Initialize LWP
 	InitLWP();
-	# Initialize link extractor
-	initExtractor();
+	# Initialize our optional libs
+	initOptionalLibs();
 
 	if(not $settings{noIgnores})
 	{
@@ -542,10 +543,11 @@ sub debugInfo
 	printf($fmt,'User agent',$BaseUA.$GiveMeUA);
 	printf($fmt,'Ignore regex',$ignoreregex);
 	my $parser;
+	my $uriEncode;
 	if(eval('use HTML::LinkExtractor; 1'))
 	{
 		$parser = 'HTML::LinkExtractor';
-		printf($fmt,'HTML::LinkExtractor','available');
+		printf($fmt,'HTML::LinkExtractor','available ('.$HTML::LinkExtractor::VERSION.')');
 	}
 	else
 	{
@@ -553,7 +555,7 @@ sub debugInfo
 		if(eval('use HTML::Entities;1'))
 		{
 			$parser = 'builtin with HTML::Entities';
-			printf($fmt,'HTML::Entities','available');
+			printf($fmt,'HTML::Entities','available ('.$HTML::Entities::VERSION.')');
 		}
 		else
 		{
@@ -562,6 +564,17 @@ sub debugInfo
 		}
 	}
 	printf($fmt,'Parser',$parser);
+	if (eval('use URI::Encode;1;'))
+	{
+		printf($fmt,'URI::Encode','available ('.$URI::Encode::VERSION.')');
+		$uriEncode = 'URI::Encode';
+	}
+	else
+	{
+		printf($fmt,'URI::Encode','not available');
+		$uriEncode = 'Builtin fallback';
+	}
+	printf($fmt,'URI encoder',$uriEncode);
 	exit(0);
 }
 
@@ -920,9 +933,9 @@ sub getLinksFrom
 	}
 }
 
-# Purpose: Initialize the link extractor
-# Usage: initExtractor();
-sub initExtractor
+# Purpose: Initialize the link extractor and URI encoder
+# Usage: initOptionalLibs();
+sub initOptionalLibs
 {
 	if(eval('use HTML::LinkExtractor;1;'))
 	{
@@ -939,6 +952,23 @@ sub initExtractor
 			warn("Warning: HTML::Entities missing, falling back to (less reliable) alternate entitiy parsing\n");
 		}
 	}
+	if (eval('use URI::Encode qw(uri_encode);1;'))
+	{
+		$settings{uriEncode} = true;
+	}
+	else
+	{
+		warn("Warning: URI::Encode missing, URIs will be submitted unencoded");
+	}
+}
+
+# Purpose: URI::Encode wrapper. It becomes a noop when URI::Encode is missing
+# Usage: uri = encodeURI(uri);
+sub encodeURI
+{
+	my $uri = shift;
+	return $uri if not $settings{uriEncode};
+	return encode_uri($uri);
 }
 
 # Purpose: Extract links from a page and insert them into %CurrLinks
@@ -955,6 +985,7 @@ sub ExtractLinks
 	{
 		my $href = $l->{href};
 		next if not $href;
+		$href = encodeURI($href);
 		next if $href =~ /^(mailto|javascript|ftp|irc|feed):/i;
 		next if $href eq '#';
 		next if $href =~ /$ignoreregex$/;

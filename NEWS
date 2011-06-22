@@ -3,6 +3,7 @@ SWEC 0.5
 - Added --postseed, allows testing of URLs that need POSTed data, as well as
 	logging into sites that only accept POSTed login credentials.
 - Removed the deprecated --hardpagelimit and --softpagelimit parameters
+- Added support for encoding URI strings with URI::Encode
 
 SWEC 0.4.1
 ----------
