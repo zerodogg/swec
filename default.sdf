@@ -242,14 +242,14 @@ sortindex = 9
 source = url
 type = regex
 check = file\:\/\/
-error = URI points to a local file
+error = URI points to a local file, linked to by %PARENT
 sortindex = 9
 
 [SWEC_URI_PERL_PKGNAME]
 source = url
 type = regex
 check = Catalyst::Engine::
-error = Used perl package names in URL
+error = Used perl package names in URL, linked to by %PARENT
 sortindex = 11
 
 [SWEC_URI_HTMLENTITY]
@@ -258,3 +258,17 @@ type = regex
 check = &(amp|lt|gt)(;|%3B)
 error = HTML entities used in URL, linked to by %PARENT%
 sortindex = 13
+
+[SWEC_URI_INVALIDURI]
+source = url
+type = regex
+check = http:/[^/]
+error = Missing a / in the URL, liked to by %PARENT%
+sortindex = 14
+
+[SWEC_URI_FORMAT]
+source = url
+type = regex
+check = ^([^/\w])
+error = Strange URL formatting, linked to by %PARENT%
+sortindex = 20

@@ -7,7 +7,8 @@ SWEC 0.5
 - Added --disable-lib to let the user disable use of various optional libs
 - Added support for //-urls
 - Updated user agent strings, added --chrome and --android
-- New tests: SWEC_CRASHEDTABLE, SWEC_SQL_ERROR
+- New tests: SWEC_CRASHEDTABLE, SWEC_SQL_ERROR, SWEC_URI_INVALIDURI,
+  SWEC_URI_FORMAT
 - Updated tests: SWEC_PHP_SYNTAX, SWEC_PHP_DB
 
 SWEC 0.4.1
