@@ -1047,8 +1047,8 @@ sub ExtractLinks
 	{
 		my $href = $l->{href};
 		next if not $href;
-		$href = encodeURI($href);
-		next if $href =~ /^(mailto|javascript|ftp|irc|feed):/i;
+		my $origHref = $href = encodeURI($href);
+		next if $href =~ /^(mailto|javascript|ftp|irc|feed|tel):/i;
 		next if $href eq '#';
 		next if $href =~ /$ignoreregex$/;
 		$href =~ s/\#.*$//;
@@ -1074,25 +1074,30 @@ sub ExtractLinks
 
 		# Run checks
 		my $err;
-		foreach my $en (@URLSortedChecks)
-		{
-			# Get a ref to the hash
-			my $ec = $Checks{$en};
-			foreach my $regex (@{$ec->{regexes}})
-			{
-				if ($href =~ $regex)
-				{
-					$err = $ec->{error};
-					last;
-				}
-			}
-			if ($err)
-			{
-				$err =~ s/%PARENT%/$url/g;
-				AddError($href,$err,$en,true);
-				last;
-			}
-		}
+        foreach my $testURL ($origHref,$href)
+        {
+            foreach my $en (@URLSortedChecks)
+            {
+                printd(2,'Running check '.$en.' on URL '.$testURL) if $debugLog;
+                # Get a ref to the hash
+                my $ec = $Checks{$en};
+                foreach my $regex (@{$ec->{regexes}})
+                {
+                    if ($testURL =~ $regex)
+                    {
+                        $err = $ec->{error};
+                        last;
+                    }
+                }
+                if ($err)
+                {
+                    $err =~ s/%PARENT%/$url/g;
+                    AddError($testURL,$err,$en,true);
+                    last;
+                }
+            }
+            last if $err;
+        }
 		if(not $err)
 		{
 			$CurrLinks{$href} = $url;
